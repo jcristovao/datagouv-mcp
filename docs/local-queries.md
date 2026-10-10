@@ -40,9 +40,38 @@ directly. `get_resource_info` gives the same verdict before any download.
 2. The file is downloaded through the same guarded HTTP client upstream uses for producer-supplied URLs, which
    refuses private and local addresses. The size limit is checked against the catalog size, the
    `Content-Length` header, and again while the download streams.
-3. The last 4 downloaded files are kept in memory for 10 minutes, so paging through a file doesn't download it
-   again.
+3. The file is saved in an on-disk cache (see below), and the last 4 files used are also kept in memory for
+   10 minutes, so paging through a file reads neither the network nor the disk.
 4. Each query parses the cached file. Without a sort, only the requested page is held in memory.
+
+## The file cache
+
+Downloaded files are kept on disk, so a later query on the same file is answered without downloading it again,
+including after a server restart.
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `LOCAL_QUERY_CACHE_DIR` | Where the files are kept | `~/.cache/datagouv-mcp/resources` |
+| `LOCAL_QUERY_CACHE_MAX_BYTES` | Total size the cache may reach. `0` turns the on-disk cache off | `1073741824` (1 GB) |
+| `LOCAL_QUERY_CACHE_REVALIDATE_SECONDS` | How long a copy is used before asking the source whether it changed | `86400` (24 hours) |
+
+**Size limit.** After each download, if the cache is over its limit, the files that have gone longest without
+being accessed are deleted until it fits. Every query on a file counts as an access. With the default limits
+(25 MB per file, 1 GB in total) the cache holds at least 40 files.
+
+**Freshness.** A cached copy is used as is while both of these hold:
+
+- the catalog still reports the same modification date and checksum for the file as when it was downloaded
+  (the tool reads the catalog entry on every query anyway, so this costs nothing);
+- the copy was downloaded or confirmed less than 24 hours ago.
+
+When the catalog entry changed, the file is downloaded again. When only the 24 hours have passed, the server
+sends a conditional request (`If-None-Match` / `If-Modified-Since`): a publisher's server that supports it
+answers "not modified" without sending the file, and the copy is good for another 24 hours. So a file can be up
+to 24 hours behind its source if the publisher replaces it without the catalog noticing.
+
+Each file is stored as `<hash of the URL>.data` with a `.json` file beside it recording the URL, the resource
+ID and the dates. Deleting the directory is safe: files are downloaded again when next needed.
 
 ## Known limits
 
@@ -51,5 +80,7 @@ directly. `get_resource_info` gives the same verdict before any download.
 - Only the first sheet of a workbook is read.
 - Blank or repeated column headers are renamed (`column_2`, `name_2`).
 
-The code is in [`helpers/local_tabular_client.py`](../helpers/local_tabular_client.py), with tests in
-[`tests/test_local_tabular.py`](../tests/test_local_tabular.py).
+The code is in [`helpers/local_tabular_client.py`](../helpers/local_tabular_client.py) and
+[`helpers/file_cache.py`](../helpers/file_cache.py), with tests in
+[`tests/test_local_tabular.py`](../tests/test_local_tabular.py) and
+[`tests/test_file_cache.py`](../tests/test_file_cache.py).

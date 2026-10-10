@@ -16,6 +16,12 @@ another udata portal instead.
 | `CRAWLER_API_URL` | The portal's crawler service, if it has one | unset |
 | `MCP_ALLOWED_HOSTS` | Extra host names the server answers to, comma-separated, e.g. `mcp.example.pt`. Needed to host it publicly; see [Hosting](hosting.md) | unset (data.gouv.fr names and localhost only) |
 | `LOCAL_QUERY_MAX_BYTES` | Largest file `query_resource_data` may download when there is no Tabular API. `0` turns the fallback off | `26214400` (25 MB) |
+| `LOCAL_QUERY_CACHE_DIR` | Where downloaded files are kept, see [Local queries](local-queries.md#the-file-cache) | `~/.cache/datagouv-mcp/resources` |
+| `LOCAL_QUERY_CACHE_MAX_BYTES` | Total size of that cache; the least recently accessed files are deleted past it. `0` turns it off | `1073741824` (1 GB) |
+| `LOCAL_QUERY_CACHE_REVALIDATE_SECONDS` | How long a cached file is used before asking its source whether it changed | `86400` (24 hours) |
+| `UDATA_CATALOG_DATASET` | ID or slug of the portal's catalog export dataset, for the [local catalog copy](catalog-mirror.md). Read by the mirror job, not by the server | unset |
+| `UDATA_CATALOG_DIR` | Where the catalog copy goes, and where `search_datasets` looks for it | `~/.local/share/datagouv-mcp/catalog/<portal host>` |
+| `UDATA_CATALOG_SEARCH` | `0` makes `search_datasets` ignore the catalog copy and always use the portal's API | on when a copy exists |
 
 A missing trailing slash is added, and blank values count as unset. All of these can also go in `.env`
 (see [`.env.example`](../.env.example)) or be passed through `docker compose`.
