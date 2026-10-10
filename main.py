@@ -8,7 +8,6 @@ from typing import Awaitable, Callable
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
 
 from helpers import env_config
 from helpers.health_probe import _run_health_check
@@ -18,6 +17,7 @@ from helpers.matomo import (
     reset_matomo_request_context,
 )
 from helpers.sentry import init_sentry
+from helpers.transport_security import build_transport_security
 from tools import register_tools
 
 init_sentry()
@@ -28,23 +28,8 @@ logger = logging.getLogger(MAIN_LOGGER_NAME)
 
 # Configure transport security for DNS rebinding protection (mcp >= 1.23)
 # Per MCP spec: MUST validate Origin header, SHOULD bind to localhost when running locally
-# Allow connections from production domain and localhost for development
-transport_security = TransportSecuritySettings(
-    enable_dns_rebinding_protection=True,
-    allowed_hosts=[
-        "mcp.data.gouv.fr",
-        "mcp.preprod.data.gouv.fr",
-        "localhost:*",
-        "127.0.0.1:*",
-    ],
-    # Validate Origin header to prevent DNS rebinding attacks (MCP spec requirement)
-    allowed_origins=[
-        "https://mcp.data.gouv.fr",
-        "https://mcp.preprod.data.gouv.fr",
-        "http://localhost:*",
-        "http://127.0.0.1:*",
-    ],
-)
+# Allows the production domains and localhost, plus any host in MCP_ALLOWED_HOSTS
+transport_security = build_transport_security()
 
 # Enable stateless_http to avoid "Session not found" errors with MCP clients
 # that don't properly maintain the mcp-session-id header across requests

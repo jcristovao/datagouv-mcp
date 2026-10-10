@@ -9,6 +9,7 @@ services:
     environment:
       - MCP_HOST=${MCP_HOST:-0.0.0.0}
       - MCP_PORT=${MCP_PORT:-8000}
+      - MCP_ALLOWED_HOSTS=${MCP_ALLOWED_HOSTS}
       - DATAGOUV_API_ENV=${DATAGOUV_API_ENV:-prod}
       - UDATA_API_URL=${UDATA_API_URL}
       - UDATA_SITE_URL=${UDATA_SITE_URL}
