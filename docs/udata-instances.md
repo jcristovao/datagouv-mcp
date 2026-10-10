@@ -14,6 +14,7 @@ another udata portal instead.
 | `TABULAR_API_URL` | The portal's Tabular API, if it has one | unset |
 | `METRICS_API_URL` | The portal's Metrics API, if it has one | unset |
 | `CRAWLER_API_URL` | The portal's crawler service, if it has one | unset |
+| `MCP_ALLOWED_HOSTS` | Extra host names the server answers to, comma-separated, e.g. `mcp.example.pt`. Needed to host it publicly; see [Hosting](hosting.md) | unset (data.gouv.fr names and localhost only) |
 | `LOCAL_QUERY_MAX_BYTES` | Largest file `query_resource_data` may download when there is no Tabular API. `0` turns the fallback off | `26214400` (25 MB) |
 
 A missing trailing slash is added, and blank values count as unset. All of these can also go in `.env`
@@ -65,5 +66,6 @@ of example words, and an example organization acronym.
 | `helpers/env_config.py` | URLs per environment, `is_available()`, portal name |
 | `helpers/portal_text.py` | Language data and the `describe()` decorator that fills description placeholders |
 | `helpers/local_tabular_client.py` | Local query fallback |
+| `helpers/transport_security.py` | Accepted host names, including `MCP_ALLOWED_HOSTS` |
 | `tools/__init__.py` | Registers only the tools the portal can support |
 | `tests/test_env_config.py`, `test_custom_instance.py`, `test_portal_text.py`, `test_local_tabular.py` | Tests for the above |

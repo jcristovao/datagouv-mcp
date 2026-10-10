@@ -22,9 +22,9 @@ curl http://127.0.0.1:8917/health
 
 The server fetches data from dados.gov.pt. It doesn't contact any French service in this configuration.
 
-Keep `MCP_HOST=127.0.0.1`. The server has no authentication, and it only accepts requests addressed to
-`localhost`, `127.0.0.1` or the French project's own host names (a protection against DNS-rebinding attacks,
-set in `main.py`). Hosting it publicly under another name would need that list extended.
+Keep `MCP_HOST=127.0.0.1`. The server has no authentication, and by default it only accepts requests addressed
+to `localhost`, `127.0.0.1` or the French project's own host names (a protection against DNS-rebinding attacks).
+To host it publicly under another name, see [Hosting it publicly](hosting.md).
 
 ## 2. Keep it running (Linux, systemd)
 

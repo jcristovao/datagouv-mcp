@@ -282,7 +282,7 @@ That came to 7 requests to dados.gov.pt in total: one per tool call, two for `ge
 
 ## Known gaps and follow-ups (not in this commit)
 
-- **Hard-coded transport security.** `TransportSecuritySettings` in `main.py` only accepts *incoming* MCP requests
+- **Hard-coded transport security** (since fixed: `MCP_ALLOWED_HOSTS`, see [Hosting](hosting.md)). `TransportSecuritySettings` in `main.py` only accepts *incoming* MCP requests
   addressed to `mcp.data.gouv.fr`, `mcp.preprod.data.gouv.fr` or localhost (DNS-rebinding protection). This has
   nothing to do with the outgoing calls to dados.gov.pt. It only matters if the server is hosted publicly under
   another name (e.g. `mcp.example.pt`); that would need something like `MCP_ALLOWED_HOSTS`.

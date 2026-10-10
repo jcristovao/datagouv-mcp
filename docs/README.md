@@ -13,6 +13,7 @@ search a portal's datasets, read their metadata, and query CSV and XLSX files, a
 | [dados.gov.pt quick start](dados-gov-pt.md) | Run the server for Portugal, keep it running, connect Claude Code, questions to try |
 | [Other udata instances](udata-instances.md) | Every setting the fork adds, and how tools adapt to what a portal offers |
 | [Local queries](local-queries.md) | How `query_resource_data` works on portals without a Tabular API |
+| [Hosting it publicly](hosting.md) | Where to host it, the code-side checklist, directories and registries, charging, and who it is for |
 | [Fork and weekly sync](fork-and-sync.md) | Branch layout, and the job that keeps the fork up to date with upstream |
 | [Development notes](development-notes.md) | History of the changes, raw live-test outputs, and a draft issue for upstream |
 
