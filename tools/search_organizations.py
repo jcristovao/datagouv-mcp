@@ -3,9 +3,9 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from helpers import datagouv_api_client
-from helpers.env_config import with_portal_name
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
+from helpers.portal_text import describe
 from tools.search_datasets import clean_search_query
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
@@ -17,7 +17,7 @@ def register_search_organizations_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
-    @with_portal_name
+    @describe()
     async def search_organizations(
         query: str = "",
         page: int = 1,
@@ -32,7 +32,7 @@ def register_search_organizations_tool(mcp: FastMCP) -> None:
         reuses).
 
         Pass a short `query` with distinctive words (acronym, ministry name, city,
-        \"INSEE\", etc.). Generic or very broad terms often return large result sets;
+        {org_example}, etc.). Generic or very broad terms often return large result sets;
         combine with `page` / `page_size` or add `badge` / `name` / `business_number_id`
         when you need a narrow list.
 

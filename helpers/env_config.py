@@ -147,10 +147,3 @@ def get_portal_name() -> str:
         return name
     host = urlsplit(get_base_url("site")).hostname or ""
     return host.removeprefix("www.")
-
-
-def with_portal_name(func):
-    """Decorator: fill the {portal} placeholder in a tool's docstring."""
-    if func.__doc__:
-        func.__doc__ = func.__doc__.replace("{portal}", get_portal_name())
-    return func

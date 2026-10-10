@@ -1,9 +1,21 @@
 import niquests
 from mcp.server.fastmcp import FastMCP
 
-from helpers import crawler_api_client, datagouv_api_client, env_config
+from helpers import crawler_api_client, datagouv_api_client, env_config, portal_text
 from helpers.logging import log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
+from tools import query_resource_data
+
+
+def _summary() -> str:
+    return (
+        "Returns format, size, MIME type, URL, and checks Tabular API availability.\n"
+        "Helps decide whether to use query_resource_data (if Tabular API is available)\n"
+        "or fetch the raw file URL directly for unsupported formats or large files."
+        if query_resource_data.is_available()
+        else "Returns format, size, MIME type and URL.\n"
+        "Use it to check a file before fetching the raw file URL directly."
+    )
 
 
 def register_get_resource_info_tool(mcp: FastMCP) -> None:
@@ -12,13 +24,12 @@ def register_get_resource_info_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
+    @portal_text.describe(summary=_summary())
     async def get_resource_info(resource_id: str) -> str:
         """
         Get detailed information about a specific resource (file).
 
-        Returns format, size, MIME type, URL, and checks Tabular API availability.
-        Helps decide whether to use query_resource_data (if Tabular API is available)
-        or fetch the raw file URL directly for unsupported formats or large files.
+        {summary}
         """
         try:
             # Get full resource data from API v2

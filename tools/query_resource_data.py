@@ -3,11 +3,16 @@ import logging
 import niquests
 from mcp.server.fastmcp import FastMCP
 
-from helpers import datagouv_api_client, tabular_api_client
+from helpers import datagouv_api_client, env_config, tabular_api_client
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
+
+
+def is_available() -> bool:
+    """Whether query_resource_data can run (it needs a Tabular API)."""
+    return env_config.is_available("tabular_api")
 
 
 def register_query_resource_data_tool(mcp: FastMCP) -> None:

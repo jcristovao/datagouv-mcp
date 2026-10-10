@@ -1,6 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from helpers import env_config
+from tools import query_resource_data
 from tools.get_dataservice_info import register_get_dataservice_info_tool
 from tools.get_dataservice_openapi_spec import (
     register_get_dataservice_openapi_spec_tool,
@@ -27,7 +28,7 @@ def register_tools(mcp: FastMCP) -> None:
     register_search_dataservices_tool(mcp)
     register_get_dataservice_info_tool(mcp)
     register_get_dataservice_openapi_spec_tool(mcp)
-    if env_config.is_available("tabular_api"):
+    if query_resource_data.is_available():
         register_query_resource_data_tool(mcp)
     register_get_dataset_info_tool(mcp)
     register_list_dataset_resources_tool(mcp)

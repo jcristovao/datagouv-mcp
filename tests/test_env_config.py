@@ -156,11 +156,3 @@ class TestCustomInstance:
     def test_invalid_api_name(self, custom_instance):
         with pytest.raises(KeyError, match="Invalid api_name"):
             env_config.is_available("invalid_api")
-
-
-def test_with_portal_name_fills_placeholder(custom_instance):
-    @env_config.with_portal_name
-    def tool():
-        """Search {portal}, the {portal} catalog."""
-
-    assert tool.__doc__ == "Search dados.gov.pt, the dados.gov.pt catalog."

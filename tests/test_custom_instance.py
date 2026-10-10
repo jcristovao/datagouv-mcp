@@ -63,10 +63,20 @@ async def test_custom_instance_descriptions_name_portal(custom_instance):
     tools = await _tools_by_name(_make_mcp())
     for tool in tools.values():
         assert "data.gouv.fr" not in (tool.description or "")
-        assert "{portal}" not in (tool.description or "")
+        assert "{" not in (tool.description or "")
+        assert "query_resource_data" not in (tool.description or "")
     assert "on dados.gov.pt" in tools["search_datasets"].description
     assert "on dados.gov.pt" in tools["search_organizations"].description
     assert "dados.gov.pt catalog" in tools["search_dataservices"].description
+
+
+async def test_custom_instance_with_tabular_keeps_query_resource_data_hints(
+    custom_instance, monkeypatch
+):
+    monkeypatch.setenv("TABULAR_API_URL", "https://tabular.example.org/api/")
+    tools = await _tools_by_name(_make_mcp())
+    for name in ("search_datasets", "list_dataset_resources", "get_resource_info"):
+        assert "query_resource_data" in tools[name].description
 
 
 async def test_default_descriptions_name_data_gouv(monkeypatch):

@@ -2,12 +2,20 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
-from helpers import datagouv_api_client
-from helpers.env_config import with_portal_name
+from helpers import datagouv_api_client, portal_text
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
+from tools import query_resource_data
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
+
+
+def _workflow() -> str:
+    return (
+        "search_datasets → list_dataset_resources → query_resource_data"
+        if query_resource_data.is_available()
+        else "search_datasets → list_dataset_resources → fetch the resource URL"
+    )
 
 
 def clean_search_query(query: str) -> str:
@@ -16,7 +24,7 @@ def clean_search_query(query: str) -> str:
     present in dataset metadata but are often added by users.
 
     The API uses strict AND logic, so adding generic words like "données"
-    that don't appear in metadata causes searches to return zero results.
+    (or "dados" on a Portuguese portal) that don't appear in metadata causes searches to return zero results.
 
     Args:
         query: Original search query
@@ -26,22 +34,7 @@ def clean_search_query(query: str) -> str:
     """
     # Stop words that are generic and often not in dataset metadata
     # These are words users commonly add but that break AND-based searches
-    stop_words = {
-        "données",
-        "donnee",
-        "donnees",
-        "fichier",
-        "fichiers",
-        "fichier de",
-        "fichiers de",
-        "tableau",
-        "tableaux",
-        "csv",
-        "excel",
-        "xlsx",
-        "json",
-        "xml",
-    }
+    stop_words = portal_text.stop_words()
 
     # Split query into words, preserving spacing
     words = query.split()
@@ -65,7 +58,7 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
-    @with_portal_name
+    @portal_text.describe(workflow=_workflow())
     async def search_datasets(
         query: str,
         page: int = 1,
@@ -78,7 +71,7 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
 
         This is typically the first step in exploring {portal}.
         Use short, specific queries (the API uses AND logic, so generic words
-        like "données" or "fichier" may return zero results).
+        like {generic_words} may return zero results).
 
         Use `sort` to order results. Accepted values: created, last_update,
         reuses, followers, views. Optionally prefixed with '-' for descending
@@ -86,7 +79,7 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
         results to recently updated datasets: last_30_days, last_12_months,
         last_3_years.
 
-        Typical workflow: search_datasets → list_dataset_resources → query_resource_data.
+        Typical workflow: {workflow}.
         """
         # Clean the query to remove generic stop words that break AND-based searches
         cleaned_query = clean_search_query(query)

@@ -3,9 +3,9 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from helpers import datagouv_api_client
-from helpers.env_config import with_portal_name
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
+from helpers.portal_text import describe
 from tools.search_datasets import clean_search_query
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
@@ -17,7 +17,7 @@ def register_search_dataservices_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
-    @with_portal_name
+    @describe()
     async def search_dataservices(
         query: str, page: int = 1, page_size: int = 20
     ) -> str:
@@ -27,7 +27,7 @@ def register_search_dataservices_tool(mcp: FastMCP) -> None:
         Third-party APIs (or dataservices) are APIs registered in the {portal} catalog
         that provide programmatic access to data (unlike datasets which are static files).
         Use short, specific queries (the API uses AND logic, so generic words
-        like "données" or "fichier" may return zero results).
+        like {generic_words} may return zero results).
 
         Typical workflow: search_dataservices → get_dataservice_info →
         get_dataservice_openapi_spec → call the API using base_api_url per spec.

@@ -1,8 +1,19 @@
 from mcp.server.fastmcp import FastMCP
 
-from helpers import datagouv_api_client
+from helpers import datagouv_api_client, portal_text
 from helpers.logging import log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
+from tools import query_resource_data
+
+
+def _next_step() -> str:
+    return (
+        "Next step: use query_resource_data for CSV/XLSX files via the Tabular API,\n"
+        "or fetch the resource URL directly for other formats (JSON, JSONL) or large datasets."
+        if query_resource_data.is_available()
+        else "Next step: fetch the resource URL directly to read a file\n"
+        "(use get_resource_info first to check its format and size)."
+    )
 
 
 def register_list_dataset_resources_tool(mcp: FastMCP) -> None:
@@ -11,13 +22,13 @@ def register_list_dataset_resources_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
+    @portal_text.describe(next_step=_next_step())
     async def list_dataset_resources(dataset_id: str) -> str:
         """
         List all resources (files) in a dataset with their metadata.
 
         Returns resource ID, title, format, size, and URL for each file.
-        Next step: use query_resource_data for CSV/XLSX files via the Tabular API,
-        or fetch the resource URL directly for other formats (JSON, JSONL) or large datasets.
+        {next_step}
         """
         try:
             dataset = await datagouv_api_client.get_dataset_details(dataset_id)
