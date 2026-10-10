@@ -10,5 +10,9 @@ def isolated_local_storage(tmp_path, monkeypatch) -> None:
         "LOCAL_QUERY_CACHE_MAX_BYTES",
         "LOCAL_QUERY_CACHE_REVALIDATE_SECONDS",
         "UDATA_CATALOG_DATASET",
+        "EMBEDDINGS_API_URL",
+        "EMBEDDINGS_MODEL",
+        "EMBEDDINGS_API_KEY",
+        "UDATA_SEMANTIC_SEARCH",
     ):
         monkeypatch.delenv(var, raising=False)

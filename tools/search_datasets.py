@@ -2,7 +2,12 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
-from helpers import catalog_search, datagouv_api_client, portal_text
+from helpers import (
+    catalog_search,
+    catalog_semantic,
+    datagouv_api_client,
+    portal_text,
+)
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 from tools import query_resource_data
@@ -20,6 +25,12 @@ def _workflow() -> str:
 
 def _query_hint() -> str:
     if catalog_search.is_available():
+        if catalog_semantic.is_available():
+            return (
+                "Describe what you are looking for in a few words, in any language.\n"
+                "Results are ranked by keywords and by meaning, so the wording does\n"
+                "not need to match the dataset title."
+            )
         return (
             "Use short, specific queries. Results are ranked by relevance, so a\n"
             "dataset does not need to contain every word of the query."
@@ -171,7 +182,11 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
                 1,
                 "Source: local copy of the catalog"
                 + (f" (exported {exported})" if exported else "")
-                + ", ranked by relevance",
+                + (
+                    ", ranked by keywords and meaning"
+                    if local_result.get("ranking") == "hybrid"
+                    else ", ranked by relevance"
+                ),
             )
         for i, ds in enumerate(datasets, 1):
             content_parts.append(f"{i}. {ds.get('title', 'Untitled')}")

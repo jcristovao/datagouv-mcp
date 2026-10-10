@@ -11,6 +11,7 @@ Run it with `python -m helpers.catalog_mirror` (e.g. from a daily timer).
 
 import argparse
 import asyncio
+import csv
 import hashlib
 import json
 import logging
@@ -18,6 +19,7 @@ import os
 import re
 import sys
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -80,6 +82,15 @@ def export_model(resource: dict[str, Any]) -> str | None:
         return model
     match = _EXPORT_TITLE.match(str(resource.get("title") or ""))
     return match.group(1) if match else None
+
+
+def iter_dataset_rows(path: Path) -> Iterator[dict[str, str]]:
+    """Rows of a mirrored dataset export, without the archived datasets."""
+    csv.field_size_limit(1 << 30)
+    with path.open(encoding="utf-8-sig", newline="") as source:
+        for row in csv.DictReader(source, delimiter=";"):
+            if row.get("id") and (row.get("archived") or "False") == "False":
+                yield row
 
 
 def read_state(directory: Path) -> dict[str, Any]:

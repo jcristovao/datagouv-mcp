@@ -2,7 +2,7 @@
 Score a dataset search engine against a fixed list of questions.
 
 Usage:
-    python scripts/eval/search_eval.py [--engine local|api] [--cases FILE] [--top 10] [--verbose]
+    python scripts/eval/search_eval.py [--engine NAME] [--cases FILE] [--top 10] [--verbose]
 
 Each case names the dataset(s) that should come up for a query. The score is
 where the first expected dataset lands in the results (hit@1, hit@5, hit@10,
@@ -11,8 +11,14 @@ mean reciprocal rank), overall and per category of difficulty.
 Engines are functions taking (query, limit) and returning dataset dicts with
 at least "title" and "organization". Add one to ENGINES to compare it.
 
-The "local" engine needs the catalog mirror (see docs/catalog-mirror.md). The
-"api" engine sends one request per case to the portal, with a pause in between.
+Engines:
+    local     what search_datasets uses: keywords, merged with the semantic
+              ranking when it is available (see docs/semantic-search.md)
+    keyword   the keyword ranking alone
+    semantic  the semantic ranking alone
+    api       the portal's own search (one request per case, with a pause)
+
+All but "api" need the catalog mirror (see docs/catalog-mirror.md).
 """
 
 import argparse
@@ -25,7 +31,12 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from helpers import catalog_search, datagouv_api_client
+from helpers import (
+    catalog_mirror,
+    catalog_search,
+    catalog_semantic,
+    datagouv_api_client,
+)
 
 DEFAULT_CASES = Path(__file__).with_name("search_cases.json")
 _API_PAUSE_SECONDS = 1.0
@@ -43,13 +54,38 @@ async def local_engine(query: str, limit: int) -> list[dict[str, Any]]:
     return result["data"]
 
 
+async def keyword_engine(query: str, limit: int) -> list[dict[str, Any]]:
+    result = await catalog_search.search_datasets(
+        query, page_size=limit, semantic=False
+    )
+    return result["data"]
+
+
+_rows_by_id: dict[str, dict[str, str]] = {}
+
+
+async def semantic_engine(query: str, limit: int) -> list[dict[str, Any]]:
+    if not _rows_by_id:
+        path = catalog_mirror.catalog_dir() / catalog_search.DATASETS_FILE
+        _rows_by_id.update(
+            {row["id"]: row for row in catalog_mirror.iter_dataset_rows(path)}
+        )
+    ranked = await catalog_semantic.rank(query, limit=limit)
+    return [_rows_by_id[dataset_id] for dataset_id, _ in ranked]
+
+
 async def api_engine(query: str, limit: int) -> list[dict[str, Any]]:
     await asyncio.sleep(_API_PAUSE_SECONDS)
     result = await datagouv_api_client.search_datasets(query, page_size=limit)
     return result["data"]
 
 
-ENGINES: dict[str, Engine] = {"local": local_engine, "api": api_engine}
+ENGINES: dict[str, Engine] = {
+    "local": local_engine,
+    "keyword": keyword_engine,
+    "semantic": semantic_engine,
+    "api": api_engine,
+}
 
 
 def is_expected(dataset: dict[str, Any], expect: dict[str, str]) -> bool:

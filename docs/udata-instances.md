@@ -21,6 +21,7 @@ another udata portal instead.
 | `LOCAL_QUERY_CACHE_REVALIDATE_SECONDS` | How long a cached file is used before asking its source whether it changed | `86400` (24 hours) |
 | `UDATA_CATALOG_DATASET` | ID or slug of the portal's catalog export dataset, for the [local catalog copy](catalog-mirror.md). Read by the mirror job, not by the server | unset |
 | `UDATA_CATALOG_DIR` | Where the catalog copy goes, and where `search_datasets` looks for it | `~/.local/share/datagouv-mcp/catalog/<portal host>` |
+| `EMBEDDINGS_API_URL` | OpenAI-compatible embeddings endpoint for the optional [semantic search](semantic-search.md); `EMBEDDINGS_MODEL`, `EMBEDDINGS_API_KEY` and `UDATA_SEMANTIC_SEARCH` are described there | unset |
 | `UDATA_CATALOG_SEARCH` | `0` makes `search_datasets` ignore the catalog copy and always use the portal's API | on when a copy exists |
 
 A missing trailing slash is added, and blank values count as unset. All of these can also go in `.env`

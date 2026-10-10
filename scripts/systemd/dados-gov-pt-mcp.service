@@ -21,6 +21,9 @@ Environment=UDATA_LANGUAGE=pt
 # Files fetched by query_resource_data are kept in %h/.cache/datagouv-mcp/resources.
 # Past this total size (1 GB) the least recently accessed ones are deleted.
 Environment=LOCAL_QUERY_CACHE_MAX_BYTES=1073741824
+# Semantic side of search_datasets (datagouv-mcp-embeddings.service). When that
+# server is down, searches use keywords only.
+Environment=EMBEDDINGS_API_URL=http://127.0.0.1:8918/v1
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=%h/code/datagouv-mcp/.venv/bin/python main.py

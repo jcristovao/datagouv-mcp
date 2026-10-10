@@ -1,0 +1,20 @@
+[Unit]
+Description=Embedding server (bge-m3 on llama.cpp) for the dados.gov.pt MCP semantic search, on 127.0.0.1:8918
+
+[Service]
+# A dedicated llama-server, separate from llama-swap (:8080) and from
+# ~/bin/llama-bge-m3 (:8081), so it neither swaps other models out nor
+# collides with them. bge-m3 is multilingual and takes about 1 GB of GPU memory.
+# The MCP server falls back to keyword search whenever this is not running.
+Environment=ROCBLAS_USE_HIPBLASLT=1
+ExecStart=%h/code/llama.cpp/build/bin/llama-server \
+    -m %h/models/bge-m3/bge-m3-q8_0.gguf \
+    -ngl 999 --embedding \
+    --host 127.0.0.1 --port 8918 \
+    -c 8192 -b 4096 -ub 4096 -np 4
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -14,7 +14,8 @@ search a portal's datasets, read their metadata, and query CSV and XLSX files, a
 | [Other udata instances](udata-instances.md) | Every setting the fork adds, and how tools adapt to what a portal offers |
 | [Local queries](local-queries.md) | How `query_resource_data` works on portals without a Tabular API, and its file cache |
 | [Local copy of the catalog](catalog-mirror.md) | Keeping the portal's catalog export on disk, checked daily, and the ranked dataset search built on it |
-| [Evaluating dataset search](search-evaluation.md) | The 35 test questions, how to score a search engine against them, and the current baseline |
+| [Semantic search](semantic-search.md) | Optional: finding datasets by meaning with a local embedding model, merged with the keyword ranking |
+| [Evaluating dataset search](search-evaluation.md) | The 35 test questions, how to score a search engine against them, and the results |
 | [Hosting it publicly](hosting.md) | Where to host it, the code-side checklist, directories and registries, charging, and who it is for |
 | [Fork and weekly sync](fork-and-sync.md) | Branch layout, and the job that keeps the fork up to date with upstream |
 | [Development notes](development-notes.md) | History of the changes, raw live-test outputs, and a draft issue for upstream |

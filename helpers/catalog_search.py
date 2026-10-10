@@ -12,7 +12,6 @@ and rebuilt when the mirrored file changes.
 """
 
 import asyncio
-import csv
 import logging
 import math
 import os
@@ -26,7 +25,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from helpers import catalog_mirror, env_config, portal_text
+from helpers import catalog_mirror, catalog_semantic, env_config, portal_text
 from helpers.logging import MAIN_LOGGER_NAME
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
@@ -47,6 +46,10 @@ _PHRASE_BONUS = 1.5
 # Up to this much extra when the query words make up the whole title
 _TITLE_FOCUS_BONUS = 0.5
 _DESCRIPTION_PREVIEW = 200
+# Reciprocal rank fusion constant: higher values flatten the advantage of top ranks
+_FUSION_K = 60
+# How much the semantic ranking counts next to the keyword ranking
+_SEMANTIC_WEIGHT = 2.0
 
 _SORT_FIELDS = {
     "created": "created_at",
@@ -88,6 +91,7 @@ class _Index:
     # One inverted index per field: word -> positions in `datasets`
     postings: tuple[dict[str, array], ...]
     document_count: dict[str, int]
+    position_by_id: dict[str, int]
     exported_at: str | None
 
 
@@ -169,55 +173,55 @@ def _build_index(path: Path) -> _Index:
     postings: tuple[dict[str, array], ...] = ({}, {}, {}, {})
     document_count: dict[str, int] = {}
 
-    csv.field_size_limit(1 << 30)
-    with path.open(encoding="utf-8-sig", newline="") as source:
-        for row in csv.DictReader(source, delimiter=";"):
-            if not row.get("id") or (row.get("archived") or "False") != "False":
-                continue
-            title = row.get("title") or ""
-            tags = tuple(tag for tag in (row.get("tags") or "").split(",") if tag)
-            description = row.get("description") or ""
-            position = len(datasets)
-            datasets.append(
-                _Dataset(
-                    id=row["id"],
-                    title=title,
-                    slug=row.get("slug") or "",
-                    organization=row.get("organization") or "",
-                    description_short=_preview(
-                        row.get("description_short") or description
-                    ),
-                    tags=tags,
-                    resources_count=_to_int(row.get("resources_count")),
-                    created_at=row.get("created_at") or "",
-                    last_modified=row.get("last_modified") or "",
-                    reuses=_to_int(row.get("metric.reuses")),
-                    followers=_to_int(row.get("metric.followers")),
-                    views=_to_int(row.get("metric.views")),
-                    title_words=tuple(tokenize(title)),
-                )
+    for row in catalog_mirror.iter_dataset_rows(path):
+        title = row.get("title") or ""
+        tags = tuple(tag for tag in (row.get("tags") or "").split(",") if tag)
+        description = row.get("description") or ""
+        position = len(datasets)
+        datasets.append(
+            _Dataset(
+                id=row["id"],
+                title=title,
+                slug=row.get("slug") or "",
+                organization=row.get("organization") or "",
+                description_short=_preview(row.get("description_short") or description),
+                tags=tags,
+                resources_count=_to_int(row.get("resources_count")),
+                created_at=row.get("created_at") or "",
+                last_modified=row.get("last_modified") or "",
+                reuses=_to_int(row.get("metric.reuses")),
+                followers=_to_int(row.get("metric.followers")),
+                views=_to_int(row.get("metric.views")),
+                title_words=tuple(tokenize(title)),
             )
-            # Each word is indexed once per dataset, under its strongest field
-            fields = (
-                f"{title} {row.get('acronym') or ''}",
-                " ".join(tags),
-                row.get("organization") or "",
-                description,
-            )
-            seen: set[str] = set()
-            for field_index, text in enumerate(fields):
-                for word in tokenize(text):
-                    if word in seen:
-                        continue
-                    seen.add(word)
-                    postings[field_index].setdefault(word, array("I")).append(position)
-                    document_count[word] = document_count.get(word, 0) + 1
+        )
+        # Each word is indexed once per dataset, under its strongest field
+        fields = (
+            f"{title} {row.get('acronym') or ''}",
+            " ".join(tags),
+            row.get("organization") or "",
+            description,
+        )
+        seen: set[str] = set()
+        for field_index, text in enumerate(fields):
+            for word in tokenize(text):
+                if word in seen:
+                    continue
+                seen.add(word)
+                postings[field_index].setdefault(word, array("I")).append(position)
+                document_count[word] = document_count.get(word, 0) + 1
 
     logger.info(
         f"Catalog search: indexed {len(datasets)} datasets from {path} "
         f"in {time.monotonic() - started:.1f}s"
     )
-    return _Index(datasets, postings, document_count, _exported_at(path.parent))
+    return _Index(
+        datasets,
+        postings,
+        document_count,
+        {dataset.id: position for position, dataset in enumerate(datasets)},
+        _exported_at(path.parent),
+    )
 
 
 def _get_index() -> _Index:
@@ -293,15 +297,38 @@ def _rank(index: _Index, query: str) -> list[int]:
     return [position for *_, position in ranked]
 
 
+def _fuse(keyword: list[int], semantic: list[int]) -> list[int]:
+    """
+    Merge two rankings (reciprocal rank fusion): a dataset scores by its rank
+    in each list, so one that both rankings like beats one that only a single
+    ranking puts first, and datasets found by only one of them still appear.
+    """
+    scores: dict[int, float] = {}
+    for ranking, weight in ((keyword, 1.0), (semantic, _SEMANTIC_WEIGHT)):
+        for rank, position in enumerate(ranking):
+            scores[position] = scores.get(position, 0.0) + weight / (_FUSION_K + rank)
+    return sorted(scores, key=lambda position: scores[position], reverse=True)
+
+
 def _search(
     query: str,
     page: int,
     page_size: int,
     sort: str | None,
     last_update_range: str | None,
+    semantic_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     index = _get_index()
     positions = _rank(index, query)
+    if semantic_ids:
+        positions = _fuse(
+            positions,
+            [
+                index.position_by_id[dataset_id]
+                for dataset_id in semantic_ids
+                if dataset_id in index.position_by_id
+            ],
+        )
 
     if last_update_range:
         if last_update_range not in _UPDATE_RANGES:
@@ -348,6 +375,7 @@ def _search(
         "page_size": len(results),
         "total": len(positions),
         "exported_at": index.exported_at,
+        "ranking": "hybrid" if semantic_ids else "keyword",
     }
 
 
@@ -357,15 +385,31 @@ async def search_datasets(
     page_size: int = 20,
     sort: str | None = None,
     last_update_range: str | None = None,
+    semantic: bool | None = None,
 ) -> dict[str, Any]:
     """
     Search the local catalog copy. Same arguments and result shape as
-    datagouv_api_client.search_datasets, plus 'exported_at' (date of the export).
+    datagouv_api_client.search_datasets, plus 'exported_at' (date of the export)
+    and 'ranking' ("hybrid" when the semantic ranking took part, else "keyword").
+
+    `semantic` forces the semantic ranking on or off; by default it is used
+    when available (see helpers/catalog_semantic.py), and a failure there
+    quietly leaves the keyword ranking alone.
 
     Raises:
         OSError: the mirrored file cannot be read.
         ValueError: unsupported sort or last_update_range.
     """
+    semantic_ids: list[str] | None = None
+    if semantic if semantic is not None else catalog_semantic.is_available():
+        try:
+            semantic_ids = [
+                dataset_id for dataset_id, _ in await catalog_semantic.rank(query)
+            ]
+        except Exception as e:  # noqa: BLE001
+            if semantic:
+                raise
+            logger.warning(f"Semantic ranking failed, using keywords only: {e}")
     return await asyncio.to_thread(
-        _search, query, page, page_size, sort, last_update_range
+        _search, query, page, page_size, sort, last_update_range, semantic_ids
     )
