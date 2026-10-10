@@ -3,16 +3,47 @@ import logging
 import niquests
 from mcp.server.fastmcp import FastMCP
 
-from helpers import datagouv_api_client, env_config, tabular_api_client
+from helpers import (
+    datagouv_api_client,
+    env_config,
+    local_tabular_client,
+    portal_text,
+    tabular_api_client,
+)
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
+from helpers.ssrf import BlockedAddressError
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
 
 
+def backend() -> str | None:
+    """
+    How query_resource_data gets its rows: "tabular" (Tabular API), "local"
+    (download the file and query it in-process) or None (tool unavailable).
+    """
+    if env_config.is_available("tabular_api"):
+        return "tabular"
+    if local_tabular_client.is_enabled():
+        return "local"
+    return None
+
+
 def is_available() -> bool:
-    """Whether query_resource_data can run (it needs a Tabular API)."""
-    return env_config.is_available("tabular_api")
+    """Whether query_resource_data can run on the configured udata instance."""
+    return backend() is not None
+
+
+def _summary() -> str:
+    if backend() == "local":
+        limit = local_tabular_client.format_size(local_tabular_client.max_bytes())
+        return (
+            f"Query tabular data from a resource (files up to {limit}; the server\n"
+            "downloads the file and queries it, no download needed on your side)."
+        )
+    return (
+        "Query tabular data from a resource via the Tabular API (no download needed)."
+    )
 
 
 def register_query_resource_data_tool(mcp: FastMCP) -> None:
@@ -21,6 +52,7 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
+    @portal_text.describe(summary=_summary())
     async def query_resource_data(
         resource_id: str,
         page: int = 1,
@@ -32,7 +64,7 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
         sort_direction: str = "asc",
     ) -> str:
         """
-        Query tabular data from a resource via the Tabular API (no download needed).
+        {summary}
 
         Works for CSV/XLSX files. Start with small page_size (20) to preview structure.
         Use filter_column/filter_value/filter_operator to filter, sort_column/sort_direction to sort.
@@ -63,16 +95,29 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
             if sort_column and sort_direction not in {"asc", "desc"}:
                 return "Error: invalid sort_direction. Supported values: asc, desc."
 
+            use_tabular_api = backend() == "tabular"
+            source = "Tabular API" if use_tabular_api else "local copy"
+            resource: dict = {}
+
             # Get resource metadata to display context
-            try:
-                resource_metadata = await datagouv_api_client.get_resource_metadata(
-                    resource_id
-                )
-                resource_title = resource_metadata.get("title", "Unknown")
-                dataset_id = resource_metadata.get("dataset_id")
-            except Exception:  # noqa: BLE001
-                resource_title = "Unknown"
-                dataset_id = None
+            if use_tabular_api:
+                try:
+                    resource_metadata = await datagouv_api_client.get_resource_metadata(
+                        resource_id
+                    )
+                    resource_title = resource_metadata.get("title", "Unknown")
+                    dataset_id = resource_metadata.get("dataset_id")
+                except Exception:  # noqa: BLE001
+                    resource_title = "Unknown"
+                    dataset_id = None
+            else:
+                # The local fallback needs the full payload (file URL, format, size)
+                details = await datagouv_api_client.get_resource_details(resource_id)
+                resource = details.get("resource", {})
+                if not resource.get("id"):
+                    return f"Error: Resource with ID '{resource_id}' not found."
+                resource_title = resource.get("title") or "Unknown"
+                dataset_id = details.get("dataset_id")
 
             # Get dataset title if available
             dataset_title = "Unknown"
@@ -91,6 +136,11 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
             ]
             if dataset_id:
                 content_parts.append(f"Dataset: {dataset_title} (ID: {dataset_id})")
+            if not use_tabular_api:
+                content_parts.append(
+                    "Source: file downloaded and queried by the server "
+                    f"(no Tabular API on {env_config.get_portal_name()})"
+                )
             content_parts.append("")
 
             # Show applied filters if any
@@ -120,18 +170,30 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
                 api_params[f"{sort_column}__sort"] = sort_direction
 
             logger.info(
-                f"Querying Tabular API for resource: {resource_title} "
+                f"Querying {source} for resource: {resource_title} "
                 f"(ID: {resource_id}), page: {page}, page_size: {page_size}, "
                 f"filters: {api_params}"
             )
 
             try:
-                tabular_data = await tabular_api_client.fetch_resource_data(
-                    resource_id,
-                    page=page,
-                    page_size=page_size,
-                    params=api_params if api_params else None,
-                )
+                if use_tabular_api:
+                    tabular_data = await tabular_api_client.fetch_resource_data(
+                        resource_id,
+                        page=page,
+                        page_size=page_size,
+                        params=api_params if api_params else None,
+                    )
+                else:
+                    tabular_data = await local_tabular_client.fetch_resource_data(
+                        resource,
+                        page=page,
+                        page_size=page_size,
+                        filter_column=filter_column,
+                        filter_value=filter_value,
+                        filter_operator=filter_operator,
+                        sort_column=sort_column,
+                        sort_direction=sort_direction,
+                    )
                 rows = tabular_data.get("data", [])
                 meta = tabular_data.get("meta", {})
                 total_count = meta.get("total")
@@ -145,7 +207,7 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
                     return "\n".join(content_parts)
 
                 if total_count is not None:
-                    content_parts.append(f"Total rows (Tabular API): {total_count}")
+                    content_parts.append(f"Total rows ({source}): {total_count}")
                     # Calculate total pages
                     if page_size_meta and page_size_meta > 0:
                         total_pages = (
@@ -200,6 +262,14 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
             except tabular_api_client.TabularApiRequestError as e:
                 logger.warning(f"Tabular API request failed: {resource_id} - {str(e)}")
                 content_parts.append(f"⚠️  {str(e)}")
+            except local_tabular_client.LocalQueryError as e:
+                logger.warning(f"Local query failed: {resource_id} - {str(e)}")
+                content_parts.append(f"⚠️  {str(e)}")
+            except BlockedAddressError as e:
+                logger.warning(f"Blocked download for resource {resource_id}: {e}")
+                content_parts.append(
+                    f"❌ The file URL is not a public http(s) address ({e})"
+                )
             except niquests.HTTPError as e:
                 status = e.response.status_code if e.response is not None else None
                 error_details = (
@@ -207,10 +277,13 @@ def register_query_resource_data_tool(mcp: FastMCP) -> None:
                 )
                 if e.request:
                     error_details += f" - URL: {e.request.url}"
-                logger.warning(
-                    f"Tabular API HTTP error for resource {resource_id}: {error_details}"
+                error_label = (
+                    "Tabular API error" if use_tabular_api else "Download error"
                 )
-                content_parts.append(f"❌ Tabular API error ({error_details})")
+                logger.warning(
+                    f"{error_label} for resource {resource_id}: {error_details}"
+                )
+                content_parts.append(f"❌ {error_label} ({error_details})")
             except Exception as e:  # noqa: BLE001
                 logger.exception(f"Unexpected error querying resource {resource_id}")
                 content_parts.append(f"❌ Error querying resource: {str(e)}")

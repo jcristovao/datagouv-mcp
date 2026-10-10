@@ -1,21 +1,56 @@
 import niquests
 from mcp.server.fastmcp import FastMCP
 
-from helpers import crawler_api_client, datagouv_api_client, env_config, portal_text
+from helpers import (
+    crawler_api_client,
+    datagouv_api_client,
+    env_config,
+    local_tabular_client,
+    portal_text,
+)
 from helpers.logging import log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 from tools import query_resource_data
 
 
 def _summary() -> str:
+    backend = query_resource_data.backend()
+    if backend == "tabular":
+        return (
+            "Returns format, size, MIME type, URL, and checks Tabular API availability.\n"
+            "Helps decide whether to use query_resource_data (if Tabular API is available)\n"
+            "or fetch the raw file URL directly for unsupported formats or large files."
+        )
+    if backend == "local":
+        limit = local_tabular_client.format_size(local_tabular_client.max_bytes())
+        return (
+            "Returns format, size, MIME type and URL.\n"
+            f"Helps decide whether to use query_resource_data (CSV/XLSX files up to {limit})\n"
+            "or fetch the raw file URL directly for other formats or larger files."
+        )
     return (
-        "Returns format, size, MIME type, URL, and checks Tabular API availability.\n"
-        "Helps decide whether to use query_resource_data (if Tabular API is available)\n"
-        "or fetch the raw file URL directly for unsupported formats or large files."
-        if query_resource_data.is_available()
-        else "Returns format, size, MIME type and URL.\n"
+        "Returns format, size, MIME type and URL.\n"
         "Use it to check a file before fetching the raw file URL directly."
     )
+
+
+def _local_query_hint(resource: dict) -> str:
+    """Say whether query_resource_data can read this file without a Tabular API."""
+    file_format = local_tabular_client.detect_format(resource)
+    if not file_format:
+        return (
+            "⚠️  Format not supported by query_resource_data "
+            "(fetch the resource URL directly)"
+        )
+    limit = local_tabular_client.max_bytes()
+    filesize = resource.get("filesize")
+    if isinstance(filesize, int) and filesize > limit:
+        return (
+            "⚠️  Too large for query_resource_data "
+            f"(limit {local_tabular_client.format_size(limit)}); "
+            "fetch the resource URL directly"
+        )
+    return f"✅ Can be queried with query_resource_data ({file_format} file)"
 
 
 def register_get_resource_info_tool(mcp: FastMCP) -> None:
@@ -122,6 +157,10 @@ def register_get_resource_info_tool(mcp: FastMCP) -> None:
                             )
                 except Exception:  # noqa: BLE001
                     content_parts.append("⚠️  Could not check Tabular API availability")
+            elif query_resource_data.backend() == "local":
+                content_parts.append("")
+                content_parts.append("Query availability:")
+                content_parts.append(_local_query_hint(resource))
             else:
                 content_parts.append("")
                 content_parts.append(

@@ -1,17 +1,26 @@
 from mcp.server.fastmcp import FastMCP
 
-from helpers import datagouv_api_client, portal_text
+from helpers import datagouv_api_client, local_tabular_client, portal_text
 from helpers.logging import log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 from tools import query_resource_data
 
 
 def _next_step() -> str:
+    backend = query_resource_data.backend()
+    if backend == "tabular":
+        return (
+            "Next step: use query_resource_data for CSV/XLSX files via the Tabular API,\n"
+            "or fetch the resource URL directly for other formats (JSON, JSONL) or large datasets."
+        )
+    if backend == "local":
+        limit = local_tabular_client.format_size(local_tabular_client.max_bytes())
+        return (
+            f"Next step: use query_resource_data for CSV/XLSX files (up to {limit}),\n"
+            "or fetch the resource URL directly for other formats (JSON, JSONL) or larger files."
+        )
     return (
-        "Next step: use query_resource_data for CSV/XLSX files via the Tabular API,\n"
-        "or fetch the resource URL directly for other formats (JSON, JSONL) or large datasets."
-        if query_resource_data.is_available()
-        else "Next step: fetch the resource URL directly to read a file\n"
+        "Next step: fetch the resource URL directly to read a file\n"
         "(use get_resource_info first to check its format and size)."
     )
 

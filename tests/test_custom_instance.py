@@ -26,6 +26,13 @@ def custom_instance(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("UDATA_API_URL", "https://dados.gov.pt/api/")
     monkeypatch.setenv("UDATA_PORTAL_NAME", "dados.gov.pt")
+    monkeypatch.delenv("LOCAL_QUERY_MAX_BYTES", raising=False)
+
+
+@pytest.fixture
+def no_local_query(custom_instance, monkeypatch):
+    """Custom instance with the local query fallback disabled."""
+    monkeypatch.setenv("LOCAL_QUERY_MAX_BYTES", "0")
 
 
 async def _tools_by_name(app: FastMCP) -> dict:
@@ -39,12 +46,27 @@ async def test_default_registers_all_tools(monkeypatch):
     assert len(tools) == 10
 
 
-async def test_custom_instance_skips_satellite_tools(custom_instance):
+async def test_custom_instance_skips_metrics_and_queries_locally(custom_instance):
+    tools = await _tools_by_name(_make_mcp())
+    assert "get_metrics" not in tools
+    assert "query_resource_data" in tools
+    assert len(tools) == 9
+    description = tools["query_resource_data"].description
+    assert "Tabular API" not in description
+    assert "files up to 25 MB" in description
+    for name in ("list_dataset_resources", "get_resource_info"):
+        assert "Tabular API" not in tools[name].description
+        assert "up to 25 MB" in tools[name].description
+
+
+async def test_custom_instance_without_local_query(no_local_query):
     tools = await _tools_by_name(_make_mcp())
     assert "query_resource_data" not in tools
     assert "get_metrics" not in tools
     assert "get_resource_info" in tools
     assert len(tools) == 8
+    for tool in tools.values():
+        assert "query_resource_data" not in (tool.description or "")
 
 
 @pytest.mark.parametrize(
@@ -64,7 +86,6 @@ async def test_custom_instance_descriptions_name_portal(custom_instance):
     for tool in tools.values():
         assert "data.gouv.fr" not in (tool.description or "")
         assert "{" not in (tool.description or "")
-        assert "query_resource_data" not in (tool.description or "")
     assert "on dados.gov.pt" in tools["search_datasets"].description
     assert "on dados.gov.pt" in tools["search_organizations"].description
     assert "dados.gov.pt catalog" in tools["search_dataservices"].description
@@ -90,7 +111,7 @@ async def test_default_descriptions_name_data_gouv(monkeypatch):
 
 
 async def test_get_resource_info_skips_unavailable_satellites(
-    custom_instance, niquests_mock: MockRouter
+    no_local_query, niquests_mock: MockRouter
 ):
     """Only the core API is called; no Tabular or Crawler request is made."""
     niquests_mock.get(
@@ -114,3 +135,21 @@ async def test_get_resource_info_skips_unavailable_satellites(
     assert "Tabular API availability" not in text
     assert "Tabular API: not available on dados.gov.pt" in text
     assert len(niquests_mock.calls) == 2
+
+
+async def test_get_resource_info_says_if_file_can_be_queried(
+    custom_instance, niquests_mock: MockRouter
+):
+    niquests_mock.get(
+        re.compile(rf"https://dados\.gov\.pt/api/2/datasets/resources/{_RID}/")
+    ).respond(
+        json={
+            "resource": {"id": _RID, "title": "big.csv", "format": "csv"},
+            "dataset_id": None,
+        }
+    )
+    content, _ = await _make_mcp().call_tool("get_resource_info", {"resource_id": _RID})
+    text = content[0].text  # type: ignore
+    assert "✅ Can be queried with query_resource_data (csv file)" in text
+    assert "Tabular API" not in text
+    assert len(niquests_mock.calls) == 1

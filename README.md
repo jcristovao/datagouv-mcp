@@ -313,7 +313,8 @@ docker compose down
   - `UDATA_SITE_URL`: public site URL used in links (defaults to `UDATA_API_URL` without the trailing `api/`).
   - `UDATA_PORTAL_NAME`: portal name shown in tool descriptions (defaults to the site host name, e.g. `dados.gov.pt`).
   - `UDATA_LANGUAGE`: `fr`, `pt` or `en`. Selects the generic words stripped from search queries ("données", "dados", "file"…) and the examples in tool descriptions. Defaults to `fr` on data.gouv.fr and `en` on other instances.
-  - `TABULAR_API_URL`, `METRICS_API_URL`, `CRAWLER_API_URL`: optional satellite services. When one is unset, the tools that need it are not registered (`query_resource_data` for the Tabular API, `get_metrics` for the Metrics API) and `get_resource_info` skips the related checks.
+  - `TABULAR_API_URL`, `METRICS_API_URL`, `CRAWLER_API_URL`: optional satellite services. Without a Metrics API, `get_metrics` is not registered. Without a Tabular API, `query_resource_data` downloads the file and queries it in-process instead (see `LOCAL_QUERY_MAX_BYTES`), and `get_resource_info` skips the Tabular and Crawler checks.
+  - `LOCAL_QUERY_MAX_BYTES`: maximum size of a CSV/TSV/XLSX file that `query_resource_data` may download when there is no Tabular API (defaults to 25 MB). Set to `0` to disable the fallback; the tool is then not registered.
 - `LOG_LEVEL`: Python logging level for the application (defaults to `INFO`). Common values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
 - `SENTRY_DSN`: Sentry DSN to enable error and performance monitoring. Monitoring is disabled when unset.
 - `SENTRY_SAMPLE_RATE`: sampling rate for Sentry traces and profiles (float `0.0`–`1.0`, defaults to `1.0`).
@@ -398,7 +399,7 @@ The MCP server provides tools to interact with data.gouv.fr datasets and third-p
 
   Parameters: `resource_id` (required)
 
-- **`query_resource_data`** - Query data from a specific resource via the Tabular API. Fetches rows from a resource to answer questions.
+- **`query_resource_data`** - Query data from a specific resource via the Tabular API. Fetches rows from a resource to answer questions. On udata instances without a Tabular API, the server downloads the CSV/TSV/XLSX file (size-capped) and applies the same filters, sorting and pagination locally.
 
   Parameters: `resource_id` (required), `page` (optional, default: 1), `page_size` (optional, default: 20, max: 200)
 
