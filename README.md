@@ -1,5 +1,18 @@
 # data.gouv.fr MCP Server
 
+> [!NOTE]
+> **This is an unofficial fork** of [datagouv/datagouv-mcp](https://github.com/datagouv/datagouv-mcp) that also works
+> with other [udata](https://github.com/opendatateam/udata) portals, such as Portugal's
+> [dados.gov.pt](https://dados.gov.pt). It is not affiliated with data.gouv.fr or DINUM. The hosted server and the
+> feedback form mentioned below belong to the original project.
+>
+> To run it against dados.gov.pt:
+> ```shell
+> UDATA_API_URL=https://dados.gov.pt/api/ UDATA_PORTAL_NAME=dados.gov.pt UDATA_LANGUAGE=pt \
+>   MCP_HOST=127.0.0.1 uv run main.py
+> ```
+> See the `UDATA_*` variables under [Run locally](#️-run-locally). Behaviour for data.gouv.fr is unchanged.
+
 <img width="1200" height="675" alt="image" src="https://github.com/user-attachments/assets/5d20e992-349a-4b3b-9a0a-ebe308735cc9" />
 
 > [!TIP]
