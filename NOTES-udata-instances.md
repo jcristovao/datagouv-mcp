@@ -1,7 +1,7 @@
 # Support other udata instances: dados.gov.pt prototype
 
-Branch `udata-instances`, one local commit (`45c15b8 feat: support other udata instances`) on top of
-upstream `5a37d6f`. Nothing has been pushed. This file is deliberately left out of the commit.
+Branch `udata-instances`, local commits on top of upstream `5a37d6f`. Nothing has been pushed. This file lives in
+its own `docs:` commits so it can be dropped before any upstream PR.
 
 ## What changed
 
@@ -26,8 +26,9 @@ New helpers:
 `KeyError` subclass whose message names the env var to set.
 
 **Graceful degradation.**
-- `tools/__init__.py` only registers `query_resource_data` when a Tabular API is configured, and `get_metrics` when a
-  Metrics API is. On dados.gov.pt that leaves 8 of the 10 tools.
+- `tools/__init__.py` only registers `get_metrics` when a Metrics API is configured. In the first commit
+  `query_resource_data` was also dropped without a Tabular API (8 of 10 tools on dados.gov.pt); since step 4 it
+  falls back to a local query instead, so dados.gov.pt has 9 of 10. See "Step 4 (built)" below.
 - `get_resource_info` skips the Crawler exceptions lookup when there's no crawler. When there's no Tabular API, it
   skips the whole Tabular section and prints `Tabular API: not available on <portal> (fetch the resource URL directly)`.
 - The health probe already calls only `search_datasets`, which uses the core API, so services that aren't configured
@@ -287,41 +288,154 @@ That came to 7 requests to dados.gov.pt in total: one per tool call, two for `ge
 - **Leftover naming.** The package description, User-Agent comment and `mcp_tool_defaults` comment still say
   data.gouv.fr. That's harmless.
 
-## Step 4 design sketch: `query_resource_data` without a Tabular API
+## Step 4 (built): `query_resource_data` without a Tabular API
 
-Goal: keep the tool's name, parameters and output format, and swap the backend for a local DuckDB query when
-`TABULAR_API_URL` isn't set.
+When there is no Tabular API, `query_resource_data` now downloads the file and queries it inside the server.
+I used Python's built-in `csv` module plus `openpyxl` (new dependency, pure Python) instead of DuckDB.
 
-1. **Registration.** Register `query_resource_data` when there's a Tabular API, **or** when `duckdb` can be
-   imported. Make DuckDB an optional extra (`datagouv-mcp[local-query]`) so upstream's image doesn't grow. A
-   `LOCAL_QUERY_ENABLED` flag would let operators opt out.
-2. **Resolve.** Call `2/datasets/resources/{rid}/` to get `url`, `format`, `mime`, `filesize` and `last_modified`.
-   Only accept csv/tsv/xlsx/xls (and maybe parquet). Anything else returns the same "fetch the URL directly" hint
-   as today.
-3. **Download.** The URL comes from the data producer, so use `helpers/ssrf.ssrf_async_session`. Enforce the size
-   cap while streaming (`LOCAL_QUERY_MAX_BYTES`, default around 50 MB). Don't rely on `filesize` or
-   `Content-Length`: the IMPIC CSV above is an Opendatasoft export with no declared size. Abort with a clear error
-   at the cap.
-4. **Cache.** Use a temp dir keyed by `resource_id` + `last_modified`, with a TTL and LRU eviction by total bytes.
-   Paging through a file shouldn't download it again.
-5. **Load.**
-   - CSV: `read_csv(..., auto_detect=true)`. Portuguese files are often `;`-separated, in cp1252/latin-1, and use
-     decimal commas, so retry with `encoding='latin-1'` if UTF-8 fails, and pass `decimal_separator=','` when the
-     sniffer finds `;`.
-   - XLSX: DuckDB's `excel` extension (`read_xlsx`), using the first sheet.
-   - Materialise into an in-memory table per request, or a persistent `.duckdb` file per cached resource.
-6. **Query mapping.**
-   - Filters map to `exact` → `=`, `contains` → `ILIKE '%' || ? || '%'`, `less`/`greater` → `<=`/`>=`, and
-     `strictly_*` → `<`/`>`. These should match the Tabular API's semantics; check the inclusive/exclusive
-     behaviour against tabular-api before building.
-   - Sorting maps to `ORDER BY "col" ASC|DESC`. Paging maps to `LIMIT page_size OFFSET (page-1)*page_size`, and
-     the total comes from `COUNT(*)`.
-   - Check column names against the table's columns and quote them. Bind values as parameters; never interpolate
-     them. Cast values for comparison operators, falling back to string comparison.
-7. **Output.** Reuse the current formatter (columns, rows, total, page X of Y), plus one line saying the data was
-   queried locally from a downloaded copy.
-8. **Tests.** Mock the download with a small CSV (`;` + latin-1) and an XLSX fixture. Cover each operator, sorting,
-   paging, the size-cap abort, and the SSRF block on a private IP.
+- **Module:** `helpers/local_tabular_client.py`. The tool keeps its name, parameters and output format. Its
+  result has the same shape as the Tabular API's, so the existing formatter is reused.
+- **Formats:** CSV, TSV and XLSX (first sheet). The format comes from the catalog `format`, the URL extension or
+  the MIME type. Anything else returns "fetch the resource URL directly". Old `.xls` and `.ods` are not supported.
+- **Download:** uses the existing SSRF-hardened session, because the URL comes from the data producer. The size
+  cap is `LOCAL_QUERY_MAX_BYTES` (default 25 MB; `0` disables the fallback and the tool is not registered). It is
+  checked three times: against the catalog `filesize`, against `Content-Length`, and while streaming.
+- **Cache:** the last 4 downloaded files are kept in memory for 10 minutes, so paging doesn't download again.
+- **Parsing:** UTF-8 (with or without BOM), falling back to cp1252 and latin-1. The separator is sniffed from
+  `, ; tab |`. Blank rows are skipped; blank or duplicate headers get stable names (`column_2`, `a_2`).
+- **Filters:** same semantics as the Tabular API (`less`/`greater` inclusive, `strictly_*` exclusive).
+  Comparisons are numeric when both sides are numbers, including decimal commas (`10,5`); otherwise they compare
+  as text, which works for ISO dates. `contains` ignores case. Empty cells never match a comparison.
+- **Sorting:** numeric if every non-empty value in the column is a number, otherwise case- and accent-insensitive
+  text ("Évora" sorts next to "Evora"). Blanks go last.
+- **Memory:** without a sort, only the requested page is kept in memory. With a sort, all matching rows are.
+- **Errors:** an unknown column returns the list of available columns.
+- **Descriptions:** `query_resource_data`, `list_dataset_resources` and `get_resource_info` have a third wording
+  for this mode ("files up to 25 MB"), and `get_resource_info` says whether a given file can be queried.
+- **data.gouv.fr is unaffected.** It has a Tabular API, so the local path is never used there. The default tool
+  listing is still byte-identical to upstream.
+
+Tests: **215 passed, 2 deselected** (`tests/test_local_tabular.py` is new). ruff and ty are clean.
+
+Limits worth knowing:
+- Each query re-parses the cached file. That's fine at 25 MB, but it's why the cap shouldn't be raised much.
+- Thousands separators (`1.234,56` or `1,234.56`) are not parsed as numbers, so those columns compare as text.
+- Compressed files (`.csv.gz`, `.zip`) are not supported.
+
+### Live test (dados.gov.pt, 2026-10-10)
+
+dados.gov.pt now exposes 9 of the 10 tools (all but `get_metrics`).
+
+```
+### query_resource_data {"resource_id": "a9a229b1-e29b-4351-8217-728a97ebec2b", "page_size": 2}
+Querying resource: Escolas 2019, csv
+Resource ID: a9a229b1-e29b-4351-8217-728a97ebec2b
+Dataset: Escolas (ID: 5ae9c921c8d8c9146c44cc72)
+Source: file downloaded and queried by the server (no Tabular API on dados.gov.pt)
+
+Total rows (local copy): 22
+Total pages: 11 (page size: 2)
+Retrieved: 2 row(s) from page 1
+Columns: gid, nome, tipo_ens, agrupament, sede_agrup, morada, lugar, freguesia, lat, lon
+
+Data (2 rows):
+  Row 1:
+    gid: 18
+    nome: Escola Básica António Graça
+    tipo_ens: Pré-escolar e 1 ciclo do ensino básico
+    agrupament: Águeda Sul
+    sede_agrup: não
+    morada: Rua do Pavilhão Gimnodesportivo 81, 3750-351 Barrô AGD
+    lugar: Barrô
+    freguesia: 10122
+    lat: 96223.015
+    lon: -28603.474
+  Row 2:
+    gid: 20
+    nome: Jardim de Infância da Giesteira
+    tipo_ens: Pré-escolar
+    agrupament: Águeda
+    sede_agrup: não
+    morada: Rua da Escola 239, Giesteira, 3750-309 Águeda
+    lugar: Giesteira
+    freguesia: 10121
+    lat: 102727.659
+    lon: -22289.327
+
+📄 More data available. Use page=2 to see the next page.
+```
+
+XLSX, same call shape:
+
+```
+### query_resource_data {"resource_id": "ac2e2c79-9e10-4f9e-8d83-84537839da18", "page_size": 2}
+Querying resource: Agrupamentos de Escolas de Lisboa - 2017-2018
+Resource ID: ac2e2c79-9e10-4f9e-8d83-84537839da18
+Dataset: Agrupamentos de Escolas de Lisboa (ID: 5ae9c606c8d8c9146d44cc0b)
+Source: file downloaded and queried by the server (no Tabular API on dados.gov.pt)
+
+Total rows (local copy): 128
+Total pages: 64 (page size: 2)
+Retrieved: 2 row(s) from page 1
+Columns: Ano Lectivo, Agrupamento de Escolas, Nome do Estabelecimento, Tipologia, Morada, Código Postal, Junta de Freguesia, Contacto Geral, Site
+[… 2 rows shown, then "📄 More data available. Use page=2 to see the next page."]
+```
+
+Filter plus sort (rows trimmed to three columns), and an unknown column:
+
+```
+### query_resource_data {"resource_id": "a9a229b1-e29b-4351-8217-728a97ebec2b", "filter_column": "tipo_ens", "filter_value": "pré-escolar", "filter_operator": "contains", "sort_column": "lat", "sort_direction": "desc", "page_size": 3}
+Querying resource: Escolas 2019, csv
+Resource ID: a9a229b1-e29b-4351-8217-728a97ebec2b
+Dataset: Escolas (ID: 5ae9c921c8d8c9146c44cc72)
+Source: file downloaded and queried by the server (no Tabular API on dados.gov.pt)
+
+Filter: tipo_ens contains pré-escolar
+Sort: lat (desc)
+
+Total rows (local copy): 12
+Total pages: 4 (page size: 3)
+Retrieved: 3 row(s) from page 1
+Columns: gid, nome, tipo_ens, agrupament, sede_agrup, morada, lugar, freguesia, lat, lon
+
+Data (3 rows):
+  Row 1:
+    nome: Escola Básica de Macinhata
+    tipo_ens: Pré-escolar e 1 ciclo do ensino básico
+    lat: 109724.955
+  Row 2:
+    nome: Escola Básica de Valongo do Vouga
+    tipo_ens: Pré-escolar e 1 ciclo do ensino básico
+    lat: 105087.261
+  Row 3:
+    nome: Escola Básica da Trofa
+    tipo_ens: Pré-escolar e 1 ciclo do ensino básico
+    lat: 104758.934
+
+📄 More data available. Use page=2 to see the next page.
+
+### query_resource_data {"resource_id": "a9a229b1-e29b-4351-8217-728a97ebec2b", "sort_column": "nope"}
+Querying resource: Escolas 2019, csv
+Resource ID: a9a229b1-e29b-4351-8217-728a97ebec2b
+Dataset: Escolas (ID: 5ae9c921c8d8c9146c44cc72)
+Source: file downloaded and queried by the server (no Tabular API on dados.gov.pt)
+
+Sort: nope (asc)
+
+⚠️  Column 'nope' does not exist in this resource. Available columns: gid, nome, tipo_ens, agrupament, sede_agrup, morada, lugar, freguesia, lat, lon
+```
+
+Size cap, on the large IMPIC export with the limit lowered to 2 MB for the test:
+
+```
+### query_resource_data {"resource_id": "c13f54bc-408e-4d2a-98d6-c2c11a2b1ddf", "page_size": 2}
+Querying resource: Exportar para CSV
+Resource ID: c13f54bc-408e-4d2a-98d6-c2c11a2b1ddf
+Dataset: Contratos Públicos na Saúde (ID: 5b03f6dac8d8c922944afa55)
+Source: file downloaded and queried by the server (no Tabular API on dados.gov.pt)
+
+⚠️  The file is larger than the 2 MB limit for local queries. Fetch the resource URL directly instead.
+```
 
 ## Draft upstream issue (for review, not posted)
 
@@ -338,18 +452,19 @@ Goal: keep the tool's name, parameters and output format, and swap the backend f
 > - the satellite services (Tabular API, Metrics API, Crawler), which other portals usually don't have;
 > - "data.gouv.fr" written into a few tool descriptions.
 >
-> **Proposal** (working prototype on a local branch, about 400 lines including tests):
+> **Proposal** (working prototype on a local branch):
 > - `UDATA_API_URL` (plus optional `UDATA_SITE_URL` and `UDATA_PORTAL_NAME`) selects a custom instance, and takes
 >   precedence over `DATAGOUV_API_ENV`. `TABULAR_API_URL`, `METRICS_API_URL` and `CRAWLER_API_URL` are optional.
-> - Tools whose service isn't configured aren't registered (`query_resource_data`, `get_metrics`), and
->   `get_resource_info` skips those checks.
+> - `get_metrics` isn't registered when there's no Metrics API, and `get_resource_info` skips the Tabular and
+>   Crawler checks.
 > - Tool descriptions use the configured portal name, and `UDATA_LANGUAGE` adapts the search stop words (today
 >   French-only, e.g. "dados" breaks AND-searches on dados.gov.pt the way "données" does on data.gouv.fr).
 > - **No change for data.gouv.fr.** With default settings, the `list_tools()` output is byte-identical to `main`,
 >   and the existing suite passes unchanged.
 >
-> A possible follow-up: a local DuckDB fallback for `query_resource_data` on portals without a Tabular API
-> (download with a size cap, then query in-process), as an optional extra.
+> The prototype also has a fallback for `query_resource_data` on portals without a Tabular API: the server
+> downloads the CSV/XLSX file (size-capped, through the existing SSRF guard) and applies the same filters, sorting
+> and pagination in-process, using the standard `csv` module and `openpyxl`. This could be a separate PR.
 >
 > Would you be open to a PR along these lines? I'm happy to adapt it to your preferred shape, for example a named
 > target table instead of env vars, or a different variable prefix.
