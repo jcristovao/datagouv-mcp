@@ -81,33 +81,42 @@ def register_get_resource_info_tool(mcp: FastMCP) -> None:
                     pass
 
             # Check if resource is available via Tabular API
-            content_parts.append("")
-            content_parts.append("Tabular API availability:")
-            try:
-                # Check if resource is in the exceptions list (large files with special support)
-                is_exception = await crawler_api_client.is_in_exceptions_list(
-                    resource_id
-                )
+            if env_config.is_available("tabular_api"):
+                content_parts.append("")
+                content_parts.append("Tabular API availability:")
+                try:
+                    # Check if resource is in the exceptions list (large files with special support)
+                    is_exception = False
+                    if env_config.is_available("crawler_api"):
+                        is_exception = await crawler_api_client.is_in_exceptions_list(
+                            resource_id
+                        )
 
-                # Try to get profile to check if it's tabular
-                profile_url = f"{env_config.get_base_url('tabular_api')}resources/{resource_id}/profile/"
-                async with niquests.AsyncSession() as session:
-                    resp = await session.get(profile_url, timeout=10.0)
-                    if resp.status_code == 200:
-                        if is_exception:
-                            content_parts.append(
-                                "✅ Available via Tabular API (large file exception)"
-                            )
+                    # Try to get profile to check if it's tabular
+                    profile_url = f"{env_config.get_base_url('tabular_api')}resources/{resource_id}/profile/"
+                    async with niquests.AsyncSession() as session:
+                        resp = await session.get(profile_url, timeout=10.0)
+                        if resp.status_code == 200:
+                            if is_exception:
+                                content_parts.append(
+                                    "✅ Available via Tabular API (large file exception)"
+                                )
+                            else:
+                                content_parts.append(
+                                    "✅ Available via Tabular API (can be queried)"
+                                )
                         else:
                             content_parts.append(
-                                "✅ Available via Tabular API (can be queried)"
+                                "⚠️  Not available via Tabular API (may not be tabular data)"
                             )
-                    else:
-                        content_parts.append(
-                            "⚠️  Not available via Tabular API (may not be tabular data)"
-                        )
-            except Exception:  # noqa: BLE001
-                content_parts.append("⚠️  Could not check Tabular API availability")
+                except Exception:  # noqa: BLE001
+                    content_parts.append("⚠️  Could not check Tabular API availability")
+            else:
+                content_parts.append("")
+                content_parts.append(
+                    f"Tabular API: not available on {env_config.get_portal_name()} "
+                    "(fetch the resource URL directly)"
+                )
 
             return "\n".join(content_parts)
 

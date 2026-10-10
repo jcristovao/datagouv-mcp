@@ -3,6 +3,7 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from helpers import datagouv_api_client
+from helpers.env_config import with_portal_name
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 from tools.search_datasets import clean_search_query
@@ -16,6 +17,7 @@ def register_search_organizations_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
+    @with_portal_name
     async def search_organizations(
         query: str = "",
         page: int = 1,
@@ -26,7 +28,7 @@ def register_search_organizations_tool(mcp: FastMCP) -> None:
         business_number_id: str | None = None,
     ) -> str:
         """
-        Find publishing organizations on data.gouv.fr (who publishes datasets and
+        Find publishing organizations on {portal} (who publishes datasets and
         reuses).
 
         Pass a short `query` with distinctive words (acronym, ministry name, city,

@@ -10,6 +10,7 @@ import uvicorn
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
+from helpers import env_config
 from helpers.health_probe import _run_health_check
 from helpers.logging import MAIN_LOGGER_NAME, UVICORN_LOGGING_CONFIG
 from helpers.matomo import (
@@ -50,7 +51,7 @@ transport_security = TransportSecuritySettings(
 # (e.g. Claude Code, Cline, OpenAI Codex). Since this server does not use
 # server-initiated notifications, stateful sessions are not needed.
 mcp = FastMCP(
-    "data.gouv.fr MCP server",
+    f"{env_config.get_portal_name()} MCP server",
     transport_security=transport_security,
     stateless_http=True,
 )
@@ -81,7 +82,11 @@ def with_monitoring(
                             "uptime_since": SERVER_START_TIME.isoformat(),
                             "version": app_version,
                             "env": os.getenv("MCP_ENV", "unknown"),
-                            "data_env": os.getenv("DATAGOUV_API_ENV", "unknown"),
+                            "data_env": (
+                                "custom"
+                                if env_config.get_env_name() == "custom"
+                                else os.getenv("DATAGOUV_API_ENV", "unknown")
+                            ),
                         }
                     ).encode("utf-8")
                     http_status = 200

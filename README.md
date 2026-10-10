@@ -309,6 +309,10 @@ docker compose down
 - `MCP_PORT`: port for the MCP HTTP server (defaults to `8000` when unset).
 - `MCP_ENV`: environment name reported to Sentry (defaults to `local` when unset). Set explicitly to `prod`, `preprod`, or `demo` in your deployment.
 - `DATAGOUV_API_ENV`: `prod` (default) or `demo`. This controls which data.gouv.fr environement it uses the data from (https://www.data.gouv.fr or https://demo.data.gouv.fr). By default the MCP server talks to the production data.gouv.fr. Set `DATAGOUV_API_ENV=demo` if you specifically need the demo environment.
+- `UDATA_API_URL`: base API URL of another [udata](https://github.com/opendatateam/udata) instance (e.g. `https://dados.gov.pt/api/`). When set, it takes precedence over `DATAGOUV_API_ENV`. Related variables:
+  - `UDATA_SITE_URL`: public site URL used in links (defaults to `UDATA_API_URL` without the trailing `api/`).
+  - `UDATA_PORTAL_NAME`: portal name shown in tool descriptions (defaults to the site host name, e.g. `dados.gov.pt`).
+  - `TABULAR_API_URL`, `METRICS_API_URL`, `CRAWLER_API_URL`: optional satellite services. When one is unset, the tools that need it are not registered (`query_resource_data` for the Tabular API, `get_metrics` for the Metrics API) and `get_resource_info` skips the related checks.
 - `LOG_LEVEL`: Python logging level for the application (defaults to `INFO`). Common values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
 - `SENTRY_DSN`: Sentry DSN to enable error and performance monitoring. Monitoring is disabled when unset.
 - `SENTRY_SAMPLE_RATE`: sampling rate for Sentry traces and profiles (float `0.0`–`1.0`, defaults to `1.0`).
@@ -335,6 +339,7 @@ You will need [uv](https://github.com/astral-sh/uv) to install dependencies and 
   MCP_PORT=8007  # (defaults to 8000 when unset)
   MCP_ENV=local  # environment name sent to Sentry (defaults to local when unset)
   DATAGOUV_API_ENV=prod  # Allowed values: demo | prod (defaults to prod when unset)
+  # UDATA_API_URL=https://dados.gov.pt/api/  # other udata instance (overrides DATAGOUV_API_ENV)
   LOG_LEVEL=INFO  # Python log level (default: INFO)
   ```
 

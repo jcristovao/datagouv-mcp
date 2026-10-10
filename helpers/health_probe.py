@@ -2,7 +2,9 @@
 Health probe that validates MCP tool execution in-process.
 
 Calls `search_datasets` with page_size=1 to confirm the tool layer and
-data.gouv.fr API access work end-to-end, without a recursive HTTP round-trip.
+catalog API access work end-to-end, without a recursive HTTP round-trip.
+Only the core udata API is probed, so satellite services that are not
+configured (Tabular, Metrics, Crawler) never fail the check.
 
 Returns True if OK, False if the probe failed.
 """

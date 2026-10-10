@@ -3,6 +3,7 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from helpers import datagouv_api_client
+from helpers.env_config import with_portal_name
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 
@@ -64,6 +65,7 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
+    @with_portal_name
     async def search_datasets(
         query: str,
         page: int = 1,
@@ -72,9 +74,9 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
         last_update_range: str | None = None,
     ) -> str:
         """
-        Search for datasets on data.gouv.fr by keywords.
+        Search for datasets on {portal} by keywords.
 
-        This is typically the first step in exploring data.gouv.fr.
+        This is typically the first step in exploring {portal}.
         Use short, specific queries (the API uses AND logic, so generic words
         like "données" or "fichier" may return zero results).
 

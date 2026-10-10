@@ -1,9 +1,8 @@
 import logging
-import os
 
 from mcp.server.fastmcp import FastMCP
 
-from helpers import datagouv_api_client, metrics_api_client
+from helpers import datagouv_api_client, env_config, metrics_api_client
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 
@@ -29,8 +28,7 @@ def register_get_metrics_tool(mcp: FastMCP) -> None:
         Note: Only available in production environment (not demo).
         """
         # Check if we're in demo environment
-        current_env: str = os.getenv("DATAGOUV_API_ENV", "prod").strip().lower()
-        if current_env == "demo":
+        if env_config.get_env_name() == "demo":
             return (
                 "Error: The Metrics API is not available in the demo environment.\n"
                 "The Metrics API only exists in production. Please set DATAGOUV_API_ENV=prod "
