@@ -2,7 +2,7 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
-from helpers import datagouv_api_client, portal_text
+from helpers import catalog_search, datagouv_api_client, portal_text
 from helpers.logging import MAIN_LOGGER_NAME, log_tool
 from helpers.mcp_tool_defaults import READ_ONLY_EXTERNAL_API_TOOL
 from tools import query_resource_data
@@ -16,6 +16,48 @@ def _workflow() -> str:
         if query_resource_data.is_available()
         else "search_datasets → list_dataset_resources → fetch the resource URL"
     )
+
+
+def _query_hint() -> str:
+    if catalog_search.is_available():
+        return (
+            "Use short, specific queries. Results are ranked by relevance, so a\n"
+            "dataset does not need to contain every word of the query."
+        )
+    return (
+        "Use short, specific queries (the API uses AND logic, so generic words\n"
+        f"like {portal_text.generic_words()} may return zero results)."
+    )
+
+
+async def _search_local_catalog(
+    query: str,
+    page: int,
+    page_size: int,
+    sort: str | None,
+    last_update_range: str | None,
+) -> dict | None:
+    """
+    Search the local copy of the catalog, when there is one.
+
+    Returns None when the portal's API should answer instead: no usable local
+    copy, a failure reading it, or nothing found in it (the copy is refreshed
+    weekly by the portal, so the newest datasets are only in the API).
+    """
+    if not catalog_search.is_available():
+        return None
+    try:
+        result = await catalog_search.search_datasets(
+            query=query,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+            last_update_range=last_update_range,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Local catalog search failed, using the API instead: {e}")
+        return None
+    return result if result.get("total") else None
 
 
 def clean_search_query(query: str) -> str:
@@ -58,7 +100,7 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
         annotations=READ_ONLY_EXTERNAL_API_TOOL,
     )
     @log_tool
-    @portal_text.describe(workflow=_workflow())
+    @portal_text.describe(workflow=_workflow(), query_hint=_query_hint())
     async def search_datasets(
         query: str,
         page: int = 1,
@@ -70,8 +112,7 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
         Search for datasets on {portal} by keywords.
 
         This is typically the first step in exploring {portal}.
-        Use short, specific queries (the API uses AND logic, so generic words
-        like {generic_words} may return zero results).
+        {query_hint}
 
         Use `sort` to order results. Accepted values: created, last_update,
         reuses, followers, views. Optionally prefixed with '-' for descending
@@ -84,8 +125,12 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
         # Clean the query to remove generic stop words that break AND-based searches
         cleaned_query = clean_search_query(query)
 
+        local_result = await _search_local_catalog(
+            query, page, page_size, sort, last_update_range
+        )
+
         # Try with cleaned query first
-        result = await datagouv_api_client.search_datasets(
+        result = local_result or await datagouv_api_client.search_datasets(
             query=cleaned_query,
             page=page,
             page_size=page_size,
@@ -120,6 +165,14 @@ def register_search_datasets_tool(mcp: FastMCP) -> None:
             f"Found {result.get('total', len(datasets))} dataset(s) for query: '{query}'",
             f"Page {result.get('page', 1)} of results:\n",
         ]
+        if local_result:
+            exported = str(local_result.get("exported_at") or "")[:10]
+            content_parts.insert(
+                1,
+                "Source: local copy of the catalog"
+                + (f" (exported {exported})" if exported else "")
+                + ", ranked by relevance",
+            )
         for i, ds in enumerate(datasets, 1):
             content_parts.append(f"{i}. {ds.get('title', 'Untitled')}")
             content_parts.append(f"   ID: {ds.get('id')}")

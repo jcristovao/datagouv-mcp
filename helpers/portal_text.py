@@ -74,6 +74,11 @@ def stop_words() -> frozenset[str]:
     return _LANGUAGES[get_language()].stop_words | _FORMAT_STOP_WORDS
 
 
+def generic_words() -> str:
+    """Example of generic query words, as quoted in tool descriptions."""
+    return _LANGUAGES[get_language()].generic_words
+
+
 def describe(**extra: str):
     """
     Decorator: fill placeholders in a tool's docstring (its MCP description).
