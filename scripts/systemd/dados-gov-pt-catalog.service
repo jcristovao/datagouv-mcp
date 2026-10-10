@@ -1,0 +1,25 @@
+[Unit]
+Description=Mirror the dados.gov.pt catalog export (CSV files) locally
+After=network-online.target
+Wants=network-online.target
+OnFailure=datagouv-mcp-sync-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/code/datagouv-mcp
+
+# One request to dados.gov.pt tells which export files changed; only those are
+# downloaded again (the portal regenerates them weekly, ~75 MB in total), so
+# most days this is a single request. Files land in
+# %h/.local/share/datagouv-mcp/catalog/dados.gov.pt (UDATA_CATALOG_DIR to change).
+Environment=UDATA_API_URL=https://dados.gov.pt/api/
+Environment=UDATA_PORTAL_NAME=dados.gov.pt
+# "Catálogo de dados dos dados.gov.pt" (the ID survives a rename, the slug may not)
+Environment=UDATA_CATALOG_DATASET=67c5a3b3b50fe67ba7aa1905
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=%h/code/datagouv-mcp/.venv/bin/python -m helpers.catalog_mirror
+TimeoutStartSec=15min
+
+Nice=10
+IOSchedulingClass=idle

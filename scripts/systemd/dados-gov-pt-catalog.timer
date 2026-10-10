@@ -1,0 +1,13 @@
+[Unit]
+Description=Check the dados.gov.pt catalog export for changes every day at 07:30
+
+[Timer]
+# Persistent=true catches up after suspend/off, which is safe: a run with
+# nothing new on the portal makes one request and exits.
+OnCalendar=*-*-* 07:30:00
+Persistent=true
+RandomizedDelaySec=10min
+AccuracySec=5min
+
+[Install]
+WantedBy=timers.target

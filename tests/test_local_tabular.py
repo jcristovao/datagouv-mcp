@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from niquests_mock import MockRouter
 from openpyxl import Workbook
 
-from helpers import local_tabular_client
+from helpers import file_cache, local_tabular_client
 from helpers.local_tabular_client import LocalQueryError, query_rows
 from tools import register_tools
 
@@ -164,6 +164,88 @@ class TestFetchResourceData:
         assert first["meta"]["total"] == 4
         assert second["data"] == []
         assert route.call_count == 1
+
+    async def test_disk_cache_survives_a_restart(self, niquests_mock: MockRouter):
+        route = niquests_mock.get(_FILE_URL).respond(content=_CSV)
+        resource = {"id": _RID, "url": _FILE_URL, "format": "csv"}
+        await local_tabular_client.fetch_resource_data(resource)
+        local_tabular_client.clear_cache()  # what a server restart does
+        result = await local_tabular_client.fetch_resource_data(resource)
+        assert result["meta"]["total"] == 4
+        assert route.call_count == 1
+
+    async def test_disk_cache_can_be_disabled(
+        self, niquests_mock: MockRouter, monkeypatch
+    ):
+        monkeypatch.setenv("LOCAL_QUERY_CACHE_MAX_BYTES", "0")
+        route = niquests_mock.get(_FILE_URL).respond(content=_CSV)
+        resource = {"id": _RID, "url": _FILE_URL, "format": "csv"}
+        await local_tabular_client.fetch_resource_data(resource)
+        local_tabular_client.clear_cache()
+        await local_tabular_client.fetch_resource_data(resource)
+        assert route.call_count == 2
+        assert not file_cache.cache_dir().exists()
+
+    async def test_downloads_again_when_the_catalog_version_changes(
+        self, niquests_mock: MockRouter
+    ):
+        route = niquests_mock.get(_FILE_URL).respond(content=_CSV)
+        resource = {"id": _RID, "url": _FILE_URL, "format": "csv"}
+        await local_tabular_client.fetch_resource_data(
+            {**resource, "last_modified": "2026-01-01T00:00:00+00:00"}
+        )
+        await local_tabular_client.fetch_resource_data(
+            {**resource, "last_modified": "2026-02-01T00:00:00+00:00"}
+        )
+        assert route.call_count == 2
+        # A changed version means a plain download, not a conditional one
+        assert "If-None-Match" not in (route.calls[1].request.headers or {})
+        meta = file_cache.lookup(_FILE_URL)
+        assert meta is not None
+        assert meta["version"] == "2026-02-01T00:00:00+00:00"
+
+    async def test_old_copy_is_revalidated_not_downloaded_again(
+        self, niquests_mock: MockRouter, monkeypatch
+    ):
+        resource = {"id": _RID, "url": _FILE_URL, "format": "csv"}
+        niquests_mock.get(_FILE_URL).respond(
+            content=_CSV,
+            headers={"ETag": '"v1"', "Last-Modified": "Sun, 04 Oct 2026 02:11:59 GMT"},
+        )
+        await local_tabular_client.fetch_resource_data(resource)
+        local_tabular_client.clear_cache()
+
+        monkeypatch.setenv("LOCAL_QUERY_CACHE_REVALIDATE_SECONDS", "0")
+        niquests_mock.reset()
+        route = niquests_mock.get(_FILE_URL).respond(304)
+        result = await local_tabular_client.fetch_resource_data(resource)
+
+        assert result["meta"]["total"] == 4
+        assert route.call_count == 1
+        sent = route.calls[0].request.headers
+        assert sent is not None
+        assert sent["If-None-Match"] == '"v1"'
+        assert sent["If-Modified-Since"] == "Sun, 04 Oct 2026 02:11:59 GMT"
+
+    async def test_revalidation_downloads_a_changed_file(
+        self, niquests_mock: MockRouter, monkeypatch
+    ):
+        resource = {"id": _RID, "url": _FILE_URL, "format": "csv"}
+        niquests_mock.get(_FILE_URL).respond(content=_CSV, headers={"ETag": '"v1"'})
+        await local_tabular_client.fetch_resource_data(resource)
+        local_tabular_client.clear_cache()
+
+        monkeypatch.setenv("LOCAL_QUERY_CACHE_REVALIDATE_SECONDS", "0")
+        niquests_mock.reset()
+        niquests_mock.get(_FILE_URL).respond(
+            content="a;b\n1;2\n".encode(), headers={"ETag": '"v2"'}
+        )
+        result = await local_tabular_client.fetch_resource_data(resource)
+
+        assert result["data"] == [{"a": "1", "b": "2"}]
+        meta = file_cache.lookup(_FILE_URL)
+        assert meta is not None
+        assert meta["etag"] == '"v2"'
 
     async def test_rejects_declared_filesize_over_limit(
         self, niquests_mock: MockRouter, monkeypatch

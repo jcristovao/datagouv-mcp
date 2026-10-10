@@ -21,6 +21,7 @@ from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
+from helpers import file_cache
 from helpers.logging import MAIN_LOGGER_NAME
 from helpers.ssrf import ssrf_async_session
 
@@ -34,8 +35,8 @@ _CSV_DELIMITERS = ",;\t|"
 
 SUPPORTED_FORMATS = ("csv", "tsv", "xlsx")
 
-# resource_id -> (url, fetched_at, content)
-_file_cache: OrderedDict[str, tuple[str, float, bytes]] = OrderedDict()
+# resource_id -> (url, version, fetched_at, content)
+_file_cache: OrderedDict[str, tuple[str, str, float, bytes]] = OrderedDict()
 
 
 class LocalQueryError(Exception):
@@ -89,11 +90,28 @@ def detect_format(resource: dict[str, Any]) -> str | None:
 
 
 def clear_cache() -> None:
-    """Clear the downloaded files cache. Useful for testing."""
+    """Clear the in-memory downloaded files cache. Useful for testing."""
     _file_cache.clear()
 
 
-async def _iter_chunks(resp: Any) -> AsyncIterator[bytes]:
+def _remember(resource_id: str, url: str, version: str, content: bytes) -> bytes:
+    _file_cache[resource_id] = (url, version, time.time(), content)
+    _file_cache.move_to_end(resource_id)
+    while len(_file_cache) > CACHE_MAX_ENTRIES:
+        _file_cache.popitem(last=False)
+    return content
+
+
+def _resource_version(resource: dict[str, Any]) -> str:
+    """What the catalog knows about the file's current version (may be empty)."""
+    checksum = resource.get("checksum")
+    checksum_value = checksum.get("value") if isinstance(checksum, dict) else None
+    return "|".join(
+        str(part) for part in (resource.get("last_modified"), checksum_value) if part
+    )
+
+
+async def iter_chunks(resp: Any) -> AsyncIterator[bytes]:
     """Yield body chunks from a streamed response (async, or sync when mocked)."""
     stream = resp.iter_content(_CHUNK_SIZE)
     if inspect.isawaitable(stream):
@@ -106,12 +124,44 @@ async def _iter_chunks(resp: Any) -> AsyncIterator[bytes]:
             yield chunk
 
 
-async def _download(resource_id: str, url: str) -> bytes:
+async def _download(resource_id: str, url: str, version: str = "") -> bytes:
+    """
+    Get a resource file: from memory, from the on-disk cache, or from its URL.
+
+    `version` is what the catalog says about the file (see _resource_version).
+    A cached copy is used as is while the version matches and the copy was
+    checked recently; after that the source is asked whether it changed
+    (conditional request), and the file is only downloaded again if it did.
+    """
     limit = max_bytes()
     cached = _file_cache.get(resource_id)
-    if cached and cached[0] == url and time.time() - cached[1] < CACHE_TTL_SECONDS:
+    if (
+        cached
+        and cached[:2] == (url, version)
+        and time.time() - cached[2] < CACHE_TTL_SECONDS
+    ):
         _file_cache.move_to_end(resource_id)
-        return cached[2]
+        if file_cache.is_enabled():
+            file_cache.touch(url)
+        return cached[3]
+
+    headers: dict[str, str] = {}
+    on_disk = (
+        await asyncio.to_thread(file_cache.lookup, url)
+        if file_cache.is_enabled()
+        else None
+    )
+    if on_disk and on_disk.get("version", "") == version:
+        age = time.time() - float(on_disk.get("checked_at") or 0)
+        if age < file_cache.revalidate_seconds():
+            content = await asyncio.to_thread(file_cache.read, url)
+            if content is not None:
+                logger.info(f"Local query: resource {resource_id} read from disk cache")
+                return _remember(resource_id, url, version, content)
+        if on_disk.get("etag"):
+            headers["If-None-Match"] = on_disk["etag"]
+        if on_disk.get("http_last_modified"):
+            headers["If-Modified-Since"] = on_disk["http_last_modified"]
 
     too_large = LocalQueryError(
         f"The file is larger than the {format_size(limit)} limit for local queries. "
@@ -120,27 +170,53 @@ async def _download(resource_id: str, url: str) -> bytes:
     session = ssrf_async_session()
     try:
         logger.info(f"Local query: downloading resource {resource_id} from {url}")
-        resp = await session.get(url, timeout=60.0, allow_redirects=True, stream=True)
-        resp.raise_for_status()
-        declared = resp.headers.get("content-length")
-        if declared and declared.isdigit() and int(declared) > limit:
-            raise too_large
+        resp = await session.get(
+            url,
+            headers=headers or None,
+            timeout=60.0,
+            allow_redirects=True,
+            stream=True,
+        )
+        not_modified = bool(headers) and resp.status_code == 304
         chunks: list[bytes] = []
-        received = 0
-        async for chunk in _iter_chunks(resp):
-            received += len(chunk)
-            if received > limit:
+        if not not_modified:
+            resp.raise_for_status()
+            declared = resp.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > limit:
                 raise too_large
-            chunks.append(chunk)
+            received = 0
+            async for chunk in iter_chunks(resp):
+                received += len(chunk)
+                if received > limit:
+                    raise too_large
+                chunks.append(chunk)
+        etag = resp.headers.get("etag")
+        http_last_modified = resp.headers.get("last-modified")
     finally:
         await session.close()
 
+    if not_modified:
+        content = await asyncio.to_thread(file_cache.read, url)
+        if content is None:
+            # The cached file disappeared in the meantime: download it in full
+            await asyncio.to_thread(file_cache.remove, url)
+            return await _download(resource_id, url, version)
+        logger.info(f"Local query: resource {resource_id} unchanged at the source")
+        await asyncio.to_thread(file_cache.mark_checked, url)
+        return _remember(resource_id, url, version, content)
+
     content = b"".join(chunks)
-    _file_cache[resource_id] = (url, time.time(), content)
-    _file_cache.move_to_end(resource_id)
-    while len(_file_cache) > CACHE_MAX_ENTRIES:
-        _file_cache.popitem(last=False)
-    return content
+    if file_cache.is_enabled():
+        await asyncio.to_thread(
+            file_cache.store,
+            url,
+            content,
+            resource_id=resource_id,
+            version=version,
+            etag=etag,
+            http_last_modified=http_last_modified,
+        )
+    return _remember(resource_id, url, version, content)
 
 
 def _decode(content: bytes) -> str:
@@ -388,5 +464,5 @@ async def fetch_resource_data(
             f"{format_size(max_bytes())} limit for local queries. "
             "Fetch the resource URL directly instead."
         )
-    content = await _download(resource_id, url)
+    content = await _download(resource_id, url, _resource_version(resource))
     return await asyncio.to_thread(query_rows, content, file_format, **query)
