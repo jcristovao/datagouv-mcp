@@ -1,0 +1,22 @@
+[Unit]
+Description=Sync the jcristovao/datagouv-mcp fork with upstream (Claude only on conflicts)
+After=network-online.target
+Wants=network-online.target
+OnFailure=datagouv-mcp-sync-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+
+# Most weeks this is a git fetch and exits in seconds. When upstream has new
+# commits it runs uv sync + the full test suite (a few minutes), and only on a
+# conflict or failing check does it start a headless Claude Code session
+# (capped at 30 min inside the script). The budget covers that worst case.
+TimeoutStartSec=75min
+
+# The script works in its own clone (%h/code/datagouv-mcp-sync/repo), pushes a
+# sync/upstream-<sha> branch to the fork and opens a pull request there. It
+# never pushes to the fork's default branch or to the upstream repository.
+ExecStart=%h/code/datagouv-mcp-sync/sync-upstream.sh
+
+Nice=10
+IOSchedulingClass=idle

@@ -1,0 +1,29 @@
+[Unit]
+Description=MCP server for dados.gov.pt (jcristovao/datagouv-mcp fork) on 127.0.0.1:8917
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/code/datagouv-mcp
+
+# Runs the working checkout, so after pulling new code (e.g. a merged weekly
+# sync PR) restart it: systemctl --user restart dados-gov-pt-mcp.service
+#
+# Bound to localhost only: the server has no authentication, and its
+# DNS-rebinding protection only accepts requests addressed to localhost
+# (or the French project's own host names).
+Environment=MCP_HOST=127.0.0.1
+Environment=MCP_PORT=8917
+Environment=MCP_ENV=local
+Environment=UDATA_API_URL=https://dados.gov.pt/api/
+Environment=UDATA_PORTAL_NAME=dados.gov.pt
+Environment=UDATA_LANGUAGE=pt
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=%h/code/datagouv-mcp/.venv/bin/python main.py
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

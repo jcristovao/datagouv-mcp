@@ -1,7 +1,8 @@
-# Support other udata instances: dados.gov.pt prototype
+# Development notes: support for other udata instances
 
-Branch `udata-instances`, local commits on top of upstream `5a37d6f`. Nothing has been pushed. This file lives in
-its own `docs:` commits so it can be dropped before any upstream PR.
+These are working notes from building the fork (2026-10-09 and 2026-10-10): what changed commit by commit, raw
+outputs of the live tests against dados.gov.pt, and a draft issue for upstream that has not been posted. For
+current usage, start at the [docs index](README.md).
 
 ## What changed
 

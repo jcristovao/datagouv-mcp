@@ -11,7 +11,7 @@
 > UDATA_API_URL=https://dados.gov.pt/api/ UDATA_PORTAL_NAME=dados.gov.pt UDATA_LANGUAGE=pt \
 >   MCP_HOST=127.0.0.1 uv run main.py
 > ```
-> See the `UDATA_*` variables under [Run locally](#️-run-locally). Behaviour for data.gouv.fr is unchanged.
+> Full documentation for the fork is in [`docs/`](docs/README.md). Behaviour for data.gouv.fr is unchanged.
 
 <img width="1200" height="675" alt="image" src="https://github.com/user-attachments/assets/5d20e992-349a-4b3b-9a0a-ebe308735cc9" />
 

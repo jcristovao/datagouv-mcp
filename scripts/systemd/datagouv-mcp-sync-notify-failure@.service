@@ -1,0 +1,12 @@
+[Unit]
+Description=Desktop notification that %i failed
+
+[Service]
+Type=oneshot
+# User units do not always inherit the session bus, and notify-send is useless
+# without it.
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
+ExecStart=/usr/bin/notify-send --app-name=datagouv-mcp-sync --urgency=critical \
+    --icon=dialog-error \
+    "%i falhou" \
+    "Ver: journalctl --user -u %i -n 40 --no-pager"
