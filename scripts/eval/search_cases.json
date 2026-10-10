@@ -1,0 +1,46 @@
+{
+  "portal": "dados.gov.pt",
+  "note": "Each case is a question a person might ask, the search query an assistant would plausibly send first, and the dataset(s) that should come up. 'expect' is matched against dataset titles (and optionally the organization) with accents and case ignored. Queries were written once, before scoring, and must not be tuned to pass.",
+  "cases": [
+    {"id": "control-contratos", "category": "control", "question": "Onde estão os dados dos contratos públicos?", "query": "contratos públicos", "expect": {"title": "^contratos publicos"}},
+    {"id": "control-farmacias-acores", "category": "control", "question": "Que farmácias há nos Açores?", "query": "farmácias Açores", "expect": {"title": "farmacias e postos de medicamentos dos acores"}},
+    {"id": "control-sismos", "category": "control", "question": "Há um mapa de risco de sismos?", "query": "risco de sismos", "expect": {"title": "^risco de sismos"}},
+    {"id": "control-bibliotecas", "category": "control", "question": "Estatísticas das bibliotecas públicas?", "query": "estatísticas bibliotecas públicas", "expect": {"title": "rede nacional de bibliotecas publicas"}},
+
+    {"id": "noise-ficheiro-escolas", "category": "noise", "question": "Preciso do ficheiro com as escolas de Águeda.", "query": "ficheiro com a lista das escolas de Águeda", "expect": {"title": "^escolas$", "organization": "agueda"}},
+    {"id": "noise-dados-urgencias", "category": "noise", "question": "Quero os dados abertos sobre as urgências dos hospitais.", "query": "dados abertos sobre atendimentos nas urgências dos hospitais", "expect": {"title": "atendimentos por tipo de urgencia|caracterizacao das valencias de urgencia|atendimentos em (servico de )?urgencia"}},
+    {"id": "noise-tabela-desemprego", "category": "noise", "question": "Há alguma tabela em CSV com a taxa de desemprego em Portugal?", "query": "tabela csv taxa de desemprego Portugal", "expect": {"title": "^taxa de desemprego"}},
+
+    {"id": "form-sem-acentos", "category": "spelling", "question": "populacao residente por municipio", "query": "populacao residente municipio", "expect": {"title": "^populacao residente"}},
+    {"id": "form-typo-contractos", "category": "spelling", "question": "contractos publicos (grafia antiga)", "query": "contractos publicos", "expect": {"title": "^contratos publicos"}},
+    {"id": "form-typo-estacionamneto", "category": "spelling", "question": "parques de estacionamneto em Lisboa (gralha)", "query": "parques estacionamneto Lisboa", "expect": {"title": "parques de estacionamento"}},
+    {"id": "form-acronym-gtfs", "category": "spelling", "question": "Horários dos autocarros de Coimbra em GTFS?", "query": "GTFS Coimbra", "expect": {"title": "gtfs", "organization": "coimbra"}},
+
+    {"id": "syn-crime", "category": "synonym", "question": "Quantos crimes são participados à polícia por ano?", "query": "criminalidade participada polícia", "expect": {"title": "^crimes registados"}},
+    {"id": "syn-sem-trabalho", "category": "synonym", "question": "Quantas pessoas estão sem trabalho?", "query": "pessoas sem emprego", "expect": {"title": "^populacao desempregada|^taxa de desemprego"}},
+    {"id": "syn-terramotos", "category": "synonym", "question": "Que zonas do país têm mais perigo de terramotos?", "query": "perigo de terramotos", "expect": {"title": "^risco de sismos"}},
+    {"id": "syn-fotovoltaico", "category": "synonym", "question": "Onde ficam os parques fotovoltaicos?", "query": "parques fotovoltaicos", "expect": {"title": "^centrais solares"}},
+    {"id": "syn-comboios", "category": "synonym", "question": "Há um mapa das linhas de comboio?", "query": "linhas de comboio mapa", "expect": {"title": "rede ferroviaria nacional"}},
+    {"id": "syn-universidades", "category": "synonym", "question": "Lista de universidades e politécnicos do país?", "query": "lista universidades politécnicos", "expect": {"title": "estabelecimentos do ensino superior"}},
+    {"id": "syn-farmacos", "category": "synonym", "question": "Quanto gastam os hospitais em fármacos?", "query": "gastos dos hospitais com fármacos", "expect": {"title": "despesa com medicamentos nos hospitais"}},
+    {"id": "syn-fogos", "category": "synonym", "question": "Onde é maior o perigo de fogos florestais?", "query": "perigo fogos florestais", "expect": {"title": "risco de incendios rurais|perigosidade de incendio"}},
+    {"id": "syn-vespa-asiatica", "category": "synonym", "question": "Ninhos de vespa asiática registados?", "query": "ninhos vespa asiática", "expect": {"title": "vespa velutina"}},
+    {"id": "syn-autarquicas", "category": "synonym", "question": "Resultados das eleições autárquicas por freguesia?", "query": "resultados eleições autárquicas", "expect": {"title": "eleicoes para as (assembleias de freguesia|camaras municipais|assembleias municipais)"}},
+    {"id": "syn-barulho", "category": "synonym", "question": "Onde há mais barulho em Oeiras?", "query": "poluição sonora Oeiras", "expect": {"title": "mapa estrategico de ruido", "organization": "oeiras"}},
+
+    {"id": "vague-praias", "category": "vague", "question": "Posso confiar na água das praias?", "query": "qualidade da água das praias", "expect": {"title": "aguas balneares"}},
+    {"id": "vague-co2", "category": "vague", "question": "Quanto CO2 emite Portugal?", "query": "emissões CO2 Portugal", "expect": {"title": "gases com efeito de estufa"}},
+    {"id": "vague-bicicletas", "category": "vague", "question": "Onde posso ir buscar uma bicicleta partilhada em Lisboa?", "query": "bicicletas partilhadas Lisboa", "expect": {"title": "\\bgira\\b"}},
+    {"id": "vague-justica-lenta", "category": "vague", "question": "A justiça é mesmo lenta? Quanto tempo demoram os processos?", "query": "tempo que demoram os processos nos tribunais", "expect": {"title": "duracao (media )?.*processos findos"}},
+    {"id": "vague-gasto-estado", "category": "vague", "question": "Em que é que o Estado gasta o dinheiro?", "query": "em que gasta o Estado o dinheiro", "expect": {"title": "execucao orcamental .* despesa|despesa por classificacao"}},
+    {"id": "vague-bebes", "category": "vague", "question": "Morrem muitos bebés em Portugal?", "query": "mortes de bebés", "expect": {"title": "mortalidade infantil"}},
+    {"id": "vague-112", "category": "vague", "question": "Quantas chamadas recebe o 112?", "query": "chamadas 112", "expect": {"title": "chamadas de emergencia"}},
+
+    {"id": "en-procurement", "category": "english", "question": "Where can I find public procurement contracts?", "query": "public procurement contracts", "expect": {"title": "^contratos publicos|ocds - portal base"}},
+    {"id": "en-cemeteries", "category": "english", "question": "Is there a list of cemeteries in Lisbon?", "query": "cemeteries Lisbon", "expect": {"title": "^cemiterios", "organization": "lisboa"}},
+    {"id": "en-bus-stops", "category": "english", "question": "Bus stops in Coimbra?", "query": "bus stops Coimbra", "expect": {"title": "paragens", "organization": "coimbra"}},
+    {"id": "en-farms", "category": "english", "question": "How many farms are there in Portugal?", "query": "number of farms Portugal", "expect": {"title": "^exploracoes agricolas"}},
+    {"id": "en-surf", "category": "english", "question": "Best surf spots in Portugal?", "query": "best surfing beaches", "expect": {"title": "spots de surf|reserva mundial de surf"}},
+    {"id": "en-hotel-prices", "category": "english", "question": "How much does a hotel night cost in Lisbon?", "query": "hotel prices Lisbon", "expect": {"title": "preco medio em hoteis"}}
+  ]
+}
