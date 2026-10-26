@@ -1,5 +1,6 @@
 import os
 
+import niquests
 import pytest
 
 from helpers import metrics_api_client
@@ -106,7 +107,7 @@ async def test_get_metrics_sort_order(known_dataset_id):
 @pytest.mark.asyncio
 async def test_get_metrics_invalid_model():
     """Test that invalid model raises an error."""
-    with pytest.raises(Exception):
+    with pytest.raises(niquests.HTTPError):
         # Use a valid ID format but invalid model
         await metrics_api_client.get_metrics(
             "unknown_model",

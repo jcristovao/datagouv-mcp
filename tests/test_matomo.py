@@ -6,7 +6,7 @@ import pytest
 from niquests_mock import MockRouter
 from niquests_mock.router import MockRoute
 
-import helpers.matomo as matomo
+from helpers import matomo
 
 _MATOMO_POST_URL = "https://matomo.example/matomo.php"
 

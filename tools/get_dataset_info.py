@@ -84,7 +84,7 @@ def register_get_dataset_info_tool(mcp: FastMCP) -> None:
             if status == 404:
                 return f"Error: Dataset with ID '{dataset_id}' not found."
             if status is not None:
-                return f"Error: HTTP {status} - {str(e)}"
-            return f"Error: {str(e)}"
+                return f"Error: HTTP {status} - {e!s}"
+            return f"Error: {e!s}"
         except Exception as e:  # noqa: BLE001
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"

@@ -105,7 +105,7 @@ def register_get_metrics_tool(mcp: FastMCP) -> None:
                         )
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Error fetching dataset metrics: {e}")
-                    content_parts.append(f"Error fetching dataset metrics: {str(e)}")
+                    content_parts.append(f"Error fetching dataset metrics: {e!s}")
 
                 if resource_id:
                     content_parts.append("")
@@ -165,10 +165,10 @@ def register_get_metrics_tool(mcp: FastMCP) -> None:
                         content_parts.append(f"{'Total':<12} {total_downloads:<15,}")
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Error fetching resource metrics: {e}")
-                    content_parts.append(f"Error fetching resource metrics: {str(e)}")
+                    content_parts.append(f"Error fetching resource metrics: {e!s}")
 
             return "\n".join(content_parts)
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.exception("Unexpected error in get_metrics")
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
