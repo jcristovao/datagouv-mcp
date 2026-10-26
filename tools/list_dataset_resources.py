@@ -93,4 +93,4 @@ def register_list_dataset_resources_tool(mcp: FastMCP) -> None:
             return "\n".join(content_parts)
 
         except Exception as e:  # noqa: BLE001
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"

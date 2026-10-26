@@ -81,10 +81,8 @@ async def _post_matomo(payload: dict) -> None:
     try:
         resp = await _client.post(f"{MATOMO_URL}/matomo.php", data=payload)
         resp.raise_for_status()
-    except Exception as e:
-        logging.getLogger(MAIN_LOGGER_NAME).error(
-            f"Matomo tracking failed: {e}", exc_info=True
-        )
+    except Exception:
+        logging.getLogger(MAIN_LOGGER_NAME).exception("Matomo tracking failed")
 
 
 async def track_matomo_event(

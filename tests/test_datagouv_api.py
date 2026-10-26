@@ -3,6 +3,7 @@
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import niquests
 import pytest
 
 from helpers import datagouv_api_client
@@ -92,6 +93,7 @@ class TestAsyncFunctions:
             resource_id, resource_title = result["resources"][0]
             assert isinstance(resource_id, str)
             assert len(resource_id) > 0
+            assert isinstance(resource_title, str)
 
     async def test_search_datasets_basic(self):
         """Test basic dataset search."""
@@ -142,13 +144,13 @@ class TestAsyncFunctions:
     async def test_get_dataset_metadata_invalid_id(self):
         """Test that invalid dataset ID raises error."""
         invalid_id = "000000000000000000000000"
-        with pytest.raises(Exception):  # Should raise HTTP error
+        with pytest.raises(niquests.HTTPError):
             await datagouv_api_client.get_dataset_metadata(invalid_id)
 
     async def test_get_resource_metadata_invalid_id(self):
         """Test that invalid resource ID raises error."""
         invalid_id = "00000000-0000-0000-0000-000000000000"
-        with pytest.raises(Exception):  # Should raise HTTP error
+        with pytest.raises(niquests.HTTPError):
             await datagouv_api_client.get_resource_metadata(invalid_id)
 
     async def test_search_datasets_empty_query(self):
@@ -398,7 +400,7 @@ class TestAsyncFunctions:
     async def test_get_dataservice_details_invalid_id(self):
         """Test that an invalid dataservice_id raises an error."""
         invalid_id = "000000000000000000000000"
-        with pytest.raises(Exception):
+        with pytest.raises(niquests.HTTPError):
             await datagouv_api_client.get_dataservice_details(invalid_id)
 
     async def test_fetch_openapi_spec_yaml(self):
@@ -414,7 +416,7 @@ class TestAsyncFunctions:
 
     async def test_fetch_openapi_spec_invalid_url(self):
         """Test that fetching from an invalid URL raises error."""
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             await datagouv_api_client.fetch_openapi_spec(
                 "https://example.com/nonexistent-spec.json"
             )

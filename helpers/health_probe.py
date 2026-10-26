@@ -47,6 +47,6 @@ async def _run_health_check(mcp: FastMCP) -> bool:
 
         return True
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"health probe check failed: {e}")
         return False

@@ -123,7 +123,7 @@ def register_get_resource_info_tool(mcp: FastMCP) -> None:
                     )
                     if dataset_meta.get("title"):
                         content_parts.append(f"Dataset: {dataset_meta.get('title')}")
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
 
             # Check if resource is available via Tabular API
@@ -173,7 +173,7 @@ def register_get_resource_info_tool(mcp: FastMCP) -> None:
         except niquests.HTTPError as e:
             status = e.response.status_code if e.response is not None else None
             if status is not None:
-                return f"Error: HTTP {status} - {str(e)}"
-            return f"Error: {str(e)}"
+                return f"Error: HTTP {status} - {e!s}"
+            return f"Error: {e!s}"
         except Exception as e:  # noqa: BLE001
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
