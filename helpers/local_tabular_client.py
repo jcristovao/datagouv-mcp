@@ -404,11 +404,11 @@ def query_rows(
         return columns.index(name)
 
     width = len(columns)
-    matches: Callable[[list[str]], bool] = lambda row: True  # noqa: E731
+    matches: Callable[[list[str]], bool] = lambda row: True
     if filter_column and filter_value is not None:
         filter_index = column_index(filter_column)
         cell_matches = _build_filter(filter_operator, str(filter_value))
-        matches = lambda row: cell_matches(row[filter_index])  # noqa: E731
+        matches = lambda row: cell_matches(row[filter_index])
     sort_index = column_index(sort_column) if sort_column else None
 
     start = (max(page, 1) - 1) * page_size

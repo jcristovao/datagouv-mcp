@@ -15,9 +15,9 @@ tree = os.path.abspath(sys.argv[1])
 os.chdir(tree)
 sys.path.insert(0, tree)
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.fastmcp import FastMCP
 
-from tools import register_tools  # noqa: E402
+from tools import register_tools
 
 app = FastMCP()
 register_tools(app)
