@@ -47,7 +47,7 @@ class TestQueryRows:
         assert result["links"] == {}
 
     def test_reads_utf8_bom_comma_csv(self):
-        content = "﻿nome,valor\ncão,1\ngato,2\n".encode("utf-8")
+        content = "﻿nome,valor\ncão,1\ngato,2\n".encode()
         result = query_rows(content, "csv")
         assert result["data"] == [
             {"nome": "cão", "valor": "1"},
@@ -238,7 +238,7 @@ class TestFetchResourceData:
         monkeypatch.setenv("LOCAL_QUERY_CACHE_REVALIDATE_SECONDS", "0")
         niquests_mock.reset()
         niquests_mock.get(_FILE_URL).respond(
-            content="a;b\n1;2\n".encode(), headers={"ETag": '"v2"'}
+            content=b"a;b\n1;2\n", headers={"ETag": '"v2"'}
         )
         result = await local_tabular_client.fetch_resource_data(resource)
 

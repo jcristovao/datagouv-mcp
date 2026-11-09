@@ -406,7 +406,7 @@ async def search_datasets(
             semantic_ids = [
                 dataset_id for dataset_id, _ in await catalog_semantic.rank(query)
             ]
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             if semantic:
                 raise
             logger.warning(f"Semantic ranking failed, using keywords only: {e}")
