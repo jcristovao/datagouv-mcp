@@ -29,13 +29,15 @@ Instead of manually browsing the website, you can simply ask questions like "Que
 > Use it now: A public instance is available for everyone at https://mcp.data.gouv.fr/mcp with no access restrictions.
 > To connect your favorite chatbot, simply follow [the connection instructions below](#-connect-your-chatbot-to-the-mcp-server).
 
+For a French introduction to the server, see the [data.gouv.fr guides](https://guides.data.gouv.fr/intelligence-artificielle/le-serveur-mcp-de-data.gouv.fr).
+
 ## 🌐 Connect your chatbot to the MCP server
 
 Use the hosted endpoint `https://mcp.data.gouv.fr/mcp` (recommended). If you self-host, swap in your own URL.
 
 The MCP server configuration depends on your client. Use the appropriate configuration format for your client:
 
-[AnythingLLM](#anythingllm) | [Autohand Code](#autohand-code) | [ChatGPT](#chatgpt) | [Claude Code](#claude-code) | [Claude Desktop](#claude-desktop) | [Cursor](#cursor) | [Gemini CLI](#gemini-cli) | [HuggingChat](#huggingchat) | [IBM Bob](#ibm-bob) | [Kiro CLI](#kiro-cli) | [Kiro IDE](#kiro-ide) | [Le Chat (Mistral)](#le-chat-mistral) | [Mistral Vibe](#mistral-vibe-cli) | [OpenCode](#opencode) | [VS Code](#vs-code) | [Windsurf](#windsurf)
+[AnythingLLM](#anythingllm) | [L'Assistant](#lassistant) | [Autohand Code](#autohand-code) | [ChatGPT](#chatgpt) | [Claude](#claude) | [Claude Code](#claude-code) | [Cursor](#cursor) | [Gemini CLI](#gemini-cli) | [HuggingChat](#huggingchat) | [IBM Bob](#ibm-bob) | [Kiro CLI](#kiro-cli) | [Kiro IDE](#kiro-ide) | [Mistral Vibe](#mistral-vibe) | [Mistral Vibe CLI](#mistral-vibe-cli) | [OpenCode](#opencode) | [VS Code](#vs-code) | [Windsurf](#windsurf)
 
 ### AnythingLLM
 
@@ -59,6 +61,12 @@ The MCP server configuration depends on your client. Use the appropriate configu
 
 For more details, see the [AnythingLLM MCP documentation](https://docs.anythingllm.com/mcp-compatibility/overview).
 
+### L'Assistant
+
+*For French public servants only.*
+
+The data.gouv.fr MCP connector is available directly to French public servants. Log in to [L'Assistant](https://assistant.numerique.gouv.fr/home), then select the data.gouv.fr connector to use it in your conversations.
+
 ### Autohand Code
 
 Use the [Autohand Code](https://github.com/autohandai/code-cli/) CLI to register the hosted endpoint:
@@ -78,6 +86,16 @@ Add `--scope project` to keep the registration in the current workspace.
 3. **Add Connector**: Return to `Settings` > `Connectors` > `Browse connectors` and click **Add a new connector**.
 4. **Configure the connector**: Set the URL to `https://mcp.data.gouv.fr/mcp` and save to activate the tools.
 
+### Claude
+
+*Available on claude.ai, Claude Desktop and Cowork, on all plans (Free plans are limited to one custom connector).*
+
+1. **Go to Connectors**: Open `Customize` > `Connectors`.
+2. **Add a custom connector**: Click **+ Add** > **Add custom connector**.
+3. **Configure the connector**: Give it a name (for example `datagouv`), set the URL to `https://mcp.data.gouv.fr/mcp`, and click **Add**. No authentication is needed.
+
+See the official docs: [About custom connectors using remote MCP](https://support.claude.com/en/articles/11175166-about-custom-connectors-using-remote-mcp).
+
 ### Claude Code
 
 Use the `claude mcp` command to add the MCP server:
@@ -85,43 +103,6 @@ Use the `claude mcp` command to add the MCP server:
 ```shell
 claude mcp add --transport http datagouv https://mcp.data.gouv.fr/mcp
 ```
-
-### Claude Desktop
-
-Add the following to your Claude Desktop configuration file (typically `~/.config/Claude/claude_desktop_config.json` on Linux, `~/Library/Application Support/Claude/claude_desktop_config.json` on MacOS, or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
-
-```json
-{
-  "mcpServers": {
-    "datagouv": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://mcp.data.gouv.fr/mcp"
-      ]
-    }
-  }
-}
-```
-
-**Claude Desktop on Windows:** If the server appears in the list but never connects (no handshake, tools missing), Claude may be using its built-in Node.js runtime, which does not see packages installed with your system `npm` (including a global `mcp-remote`). Set `isUsingBuiltInNodeForMcp` to `false` at the **root** of the same config file so `npx` uses your installed Node — then restart Claude Desktop:
-
-```json
-{
-  "isUsingBuiltInNodeForMcp": false,
-  "mcpServers": {
-    "datagouv": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://mcp.data.gouv.fr/mcp"
-      ]
-    }
-  }
-}
-```
-
-See [issue #69](https://github.com/datagouv/datagouv-mcp/issues/69) for background.
 
 ### Cursor
 
@@ -214,14 +195,16 @@ Add the following to your Kiro MCP configuration file (`.kiro/settings/mcp.json`
 }
 ```
 
-### Le Chat (Mistral)
+### Mistral Vibe
 
-*Available on all plans, including free.*
+*Formerly Le Chat. Available on all plans, including free.*
 
-1. **Go to Connectors**: Open Mistral in your browser, then go to `Intelligence` > `Connectors`.
-2. **Add a custom connector**: Click `Add connector` > `Custom MCP Connector`, give it a name (for example `DataGouv`), and set the server URL to `https://mcp.data.gouv.fr/mcp`.
-3. **No authentication**: Leave authentication disabled.
+1. **Go to Connectors**: Open Mistral Vibe in your browser, then go to `Connectors`.
+2. **Add a custom connector**: Click **+ Add Connector** and open the **Custom MCP Connector** tab.
+3. **Configure the connector**: Give it a name (for example `datagouv`) and set the server URL to `https://mcp.data.gouv.fr/mcp`. Leave authentication disabled.
 4. **Create**: Click **Create**.
+
+See the official docs: [MCP connectors](https://docs.mistral.ai/vibe/work/connectors/mcp-connectors).
 
 ### Mistral Vibe CLI
 

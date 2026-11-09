@@ -90,7 +90,7 @@ def register_get_dataservice_info_tool(mcp: FastMCP) -> None:
             if status == 404:
                 return f"Error: Third-party API not found (dataservice_id='{dataservice_id}')."
             if status is not None:
-                return f"Error: HTTP {status} - {str(e)}"
-            return f"Error: {str(e)}"
+                return f"Error: HTTP {status} - {e!s}"
+            return f"Error: {e!s}"
         except Exception as e:  # noqa: BLE001
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
