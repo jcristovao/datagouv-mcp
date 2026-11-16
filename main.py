@@ -2,9 +2,9 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
-from typing import Awaitable, Callable
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
@@ -22,7 +22,7 @@ from tools import register_tools
 
 init_sentry()
 
-SERVER_START_TIME = datetime.now(timezone.utc)
+SERVER_START_TIME = datetime.now(UTC)
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
 

@@ -81,10 +81,8 @@ async def _post_matomo(payload: dict) -> None:
     try:
         resp = await _client.post(f"{MATOMO_URL}/matomo.php", data=payload)
         resp.raise_for_status()
-    except Exception as e:
-        logging.getLogger(MAIN_LOGGER_NAME).error(
-            f"Matomo tracking failed: {e}", exc_info=True
-        )
+    except Exception:
+        logging.getLogger(MAIN_LOGGER_NAME).exception("Matomo tracking failed")
 
 
 async def track_matomo_event(
@@ -97,6 +95,7 @@ async def track_matomo_event(
     Uses e_c / e_a and ca=1 per the HTTP Tracking API.
     """
     action_override, category_override = _matomo_event_override.get()
+    user_agent = _request_user_agent.get()
     payload = {
         "idsite": MATOMO_SITE_ID,
         "rec": 1,
@@ -104,9 +103,13 @@ async def track_matomo_event(
         "ca": 1,
         "e_c": category or category_override or MATOMO_DEFAULT_EVENT_CATEGORY,
         "e_a": action or action_override or name,
-        "ua": _request_user_agent.get(),
+        "ua": user_agent,
         "rand": str(random.randint(10**15, 10**16 - 1)),
     }
+    # Matomo reduces `ua` to browser/OS, so custom MCP clients are only visible through e_n.
+    client_name = user_agent.split("/", 1)[0].strip()[:50]
+    if client_name:
+        payload["e_n"] = client_name
     if MATOMO_AUTH_TOKEN:
         payload["token_auth"] = MATOMO_AUTH_TOKEN
         cip = _request_cip.get()

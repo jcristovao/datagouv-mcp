@@ -22,10 +22,10 @@ jobs:
           command: uv sync --frozen
       - run:
           name: Lint and format code and sort imports
-          # ruff check --extend-select I . : check linting and imports sorting without fixing (to fix, use --fix)
+          # ruff check . : check linting without fixing (to fix, use --fix)
           # ruff format --check . : check code formatting without fixing (to fix, remove --check)
           command: |
-            uv run ruff check --extend-select I .
+            uv run ruff check .
             uv run ruff format --check .
       - run:
           name: Type check
@@ -53,19 +53,10 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Compute RELEASE_VERSION via setuptools_scm
-          command: |
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.local/bin:$PATH"
-            git fetch --tags --force origin
-            RELEASE_VERSION=$(uvx --from setuptools-scm python -m setuptools_scm)
-            echo "Building image with version $RELEASE_VERSION"
-            echo "Build number: $CIRCLE_BUILD_NUM"
-            echo "Commit hash: ${CIRCLE_SHA1:0:7}"
-            echo "Git tag: $CIRCLE_TAG"
-            echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$BASH_ENV"
+          name: Set image version
+          command: echo "version=${CIRCLE_SHA1:0:7}" >> "$BASH_ENV"
       - run:
-          name: Log in to Docker registry
+          name: Log in to container registry
           command: |
             : "${CONTAINER_REGISTRY_SERVER:?missing CONTAINER_REGISTRY_SERVER}"
             : "${CONTAINER_REGISTRY_USERNAME:?missing CONTAINER_REGISTRY_USERNAME}"
@@ -74,31 +65,21 @@ jobs:
               -u "${CONTAINER_REGISTRY_USERNAME}" \
               --password-stdin "${CONTAINER_REGISTRY_SERVER}"
       - run:
-          name: Build and push Docker image
+          name: Build and push
           command: |
             source "$BASH_ENV"
             : "${CONTAINER_REGISTRY_SERVER:?missing CONTAINER_REGISTRY_SERVER}"
+            git fetch --tags --force origin
             REPO="${CONTAINER_REGISTRY_SERVER}/<< pipeline.parameters.container-registry-namespace >>/<< pipeline.parameters.docker-image >>"
-            # Five distinct tags (SCM version, SHA short/long, branch, optional git tag (always v-prefixed, e.g. v1.0.0)).
-            # Docker tags allow only [a-zA-Z0-9_.-]; setuptools_scm can output e.g. 1.0.0.dev5+gabc1234
-            DOCKER_TAG_SCM=$(echo "$RELEASE_VERSION" | tr '+' '-')
-            DOCKER_TAG_SHA_SHORT="${CIRCLE_SHA1:0:7}"
-            DOCKER_TAG_SHA_LONG="$CIRCLE_SHA1"
-            # CIRCLE_BRANCH is often empty on tag pipelines; skip an invalid empty Docker tag.
-            DOCKER_TAG_BRANCH=$(printf '%s' "${CIRCLE_BRANCH:-}" | tr '/' '-' | sed 's/[^a-zA-Z0-9_.-]/-/g')
             DOCKER_TAG_GIT="${CIRCLE_TAG:-$(git describe --tags --exact-match 2>/dev/null || true)}"
             docker build \
-              -t "${REPO}:${DOCKER_TAG_SCM}" \
-              -t "${REPO}:${DOCKER_TAG_SHA_SHORT}" \
-              -t "${REPO}:${DOCKER_TAG_SHA_LONG}" \
-              ${DOCKER_TAG_BRANCH:+-t "${REPO}:${DOCKER_TAG_BRANCH}"} \
+              -t "${REPO}:${version}" \
+              $([ "${CIRCLE_BRANCH:-}" = "main" ] && echo -t "${REPO}:latest") \
               ${DOCKER_TAG_GIT:+-t "${REPO}:${DOCKER_TAG_GIT}"} \
               .
-            docker push "${REPO}:${DOCKER_TAG_SCM}"
-            docker push "${REPO}:${DOCKER_TAG_SHA_SHORT}"
-            docker push "${REPO}:${DOCKER_TAG_SHA_LONG}"
-            if [ -n "$DOCKER_TAG_BRANCH" ]; then
-              docker push "${REPO}:${DOCKER_TAG_BRANCH}"
+            docker push "${REPO}:${version}"
+            if [ "${CIRCLE_BRANCH:-}" = "main" ]; then
+              docker push "${REPO}:latest"
             fi
             if [ -n "$DOCKER_TAG_GIT" ]; then
               docker push "${REPO}:${DOCKER_TAG_GIT}"

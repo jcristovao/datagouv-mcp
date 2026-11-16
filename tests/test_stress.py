@@ -76,7 +76,7 @@ async def _fire_and_disconnect(tool_name: str, tool_args: dict) -> str:
     host = parsed.hostname or "localhost"
     port = parsed.port or 80
     raw_request = _build_raw_http_request(tool_name, tool_args)
-    reader, writer = await asyncio.open_connection(host, port)
+    _reader, writer = await asyncio.open_connection(host, port)
     writer.write(raw_request)
     await writer.drain()
     writer.close()

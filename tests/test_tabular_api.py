@@ -155,7 +155,7 @@ async def test_profile_and_data_consistency(resource_id: str) -> None:
 
     profile_headers = profile["profile"]["header"]
     if data["data"]:
-        data_columns = [col for col in data["data"][0].keys() if col != "__id"]
+        data_columns = [col for col in data["data"][0] if col != "__id"]
         # Headers should match (excluding __id from data)
         assert len(profile_headers) == len(data_columns)
         # Check that all headers are in data columns
