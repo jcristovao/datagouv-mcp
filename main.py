@@ -2,9 +2,9 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
-from typing import Awaitable, Callable
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
@@ -15,6 +15,7 @@ from helpers.logging import MAIN_LOGGER_NAME, UVICORN_LOGGING_CONFIG
 from helpers.matomo import (
     apply_matomo_request_context,
     reset_matomo_request_context,
+    track_initialize_requests,
 )
 from helpers.sentry import init_sentry
 from helpers.transport_security import build_transport_security
@@ -22,7 +23,7 @@ from tools import register_tools
 
 init_sentry()
 
-SERVER_START_TIME = datetime.now(timezone.utc)
+SERVER_START_TIME = datetime.now(UTC)
 
 logger = logging.getLogger(MAIN_LOGGER_NAME)
 
@@ -101,6 +102,9 @@ def with_monitoring(
             url_token, ua_token, cip_token = apply_matomo_request_context(
                 headers_dict, path
             )
+            # Matomo: count MCP session initializations (clients connecting)
+            if scope.get("method") == "POST" and path.rstrip("/") == "/mcp":
+                receive, send = track_initialize_requests(receive, send)
             try:
                 await inner_app(scope, receive, send)
             finally:
