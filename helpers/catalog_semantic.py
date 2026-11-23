@@ -83,7 +83,7 @@ def dataset_text(row: dict[str, str]) -> str:
 
 
 def _text_hash(text: str, model: str) -> str:
-    return hashlib.sha1(f"{model}\n{text}".encode("utf-8")).hexdigest()
+    return hashlib.sha1(f"{model}\n{text}".encode()).hexdigest()
 
 
 def _read_store(path: Path) -> tuple[list[str], list[str], np.ndarray, str]:
